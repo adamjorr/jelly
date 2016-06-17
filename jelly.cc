@@ -73,7 +73,7 @@ void Hashtable::get_kmer_counts(const std::string &s,
 #include <cstring>
 #include <iostream>
 #include <getopt.h>
-#include "parser.h"
+#include "argparser.h"
 
 int main (int argc, char **argv){
 
@@ -153,7 +153,7 @@ int main (int argc, char **argv){
 
 	ArgParser p;
 	char** args = p.parse_args(argc,argv);
-	
+
 	// for(char* z : args){
 	// 	std::cout << z << "\t" << *z << "\n";
 	// }
