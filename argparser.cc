@@ -2,21 +2,21 @@
 #include "argparser.h"
 #include <getopt.h>
 #include <iostream>
+#include <string>
 
-char** ArgParser::parse_args(int argc, char **argv){
+ArgParser::arg_struc ArgParser::parse_args(int argc, char **argv){
 
-	char *graph_file;
-	char *input_file;
-	char *input1_file;
-	char *input2_file;
-	char *out_file;
-	char *out1_file;
-	char *out2_file;
-	char *singletons_file;
-	char *min;
-	char *max;
-	char *to_return[] = {graph_file, input_file, input1_file, input2_file, out_file, out1_file, out2_file, singletons_file, min, max};
-	char **ret = to_return;
+	std::string graph_file;
+	std::string input_file;
+	std::string input1_file;
+	std::string input2_file;
+	std::string out_file;
+	std::string out1_file;
+	std::string out2_file;
+	std::string singletons_file;
+	std::string min;
+	std::string max;
+	arg_struc to_return;
 
 	int option_index = 0;
 	static struct option long_options[] = {
@@ -83,8 +83,9 @@ char** ArgParser::parse_args(int argc, char **argv){
 
 	}
 
+	to_return = {graph_file, input_file, input1_file, input2_file, out_file, out1_file, out2_file, singletons_file, min, max};
 
-	// return to_return;
-	return ret;
+	// std::array<std::string,10> to_return = {graph_file, input_file, input1_file, input2_file, out_file, out1_file, out2_file, singletons_file, min, max};
+	return to_return;
 
 }
