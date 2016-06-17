@@ -16,7 +16,7 @@ char** ArgParser::parse_args(int argc, char **argv){
 	char *min;
 	char *max;
 	char *to_return[] = {graph_file, input_file, input1_file, input2_file, out_file, out1_file, out2_file, singletons_file, min, max};
-	char **ret = &to_return;
+	char **ret = to_return;
 
 	int option_index = 0;
 	static struct option long_options[] = {
@@ -39,42 +39,42 @@ char** ArgParser::parse_args(int argc, char **argv){
 	const char * shortopts = "g:i:1:2:o:p:q:s:";
 	int c = 0;
 	while (c != -1){
-		std::cout << c << "\n";
 		c = getopt_long_only(argc, argv, shortopts, long_options, &option_index);
-		std::cout << (char)(c) << "\n";
 		switch(c){
 			case 'g':
-				*graph_file = *optarg;
+				graph_file = optarg;
 				break;
 			case 'i':
-				*input_file = *optarg;
+				input_file = optarg;
 				break;
 			case '1':
-				*input1_file = *optarg;
+				input1_file = optarg;
 				break;
 			case '2':
-				*input2_file = *optarg;
+				input2_file = optarg;
 				break;
 			case 'o':
-				*out_file = *optarg;
+				out_file = optarg;
 				break;
 			case 'p':
-				*out1_file = *optarg;
+				out1_file = optarg;
 				break;
 			case 'q':
-				*out2_file = *optarg;
+				out2_file = optarg;
 				break;
 			case 's':
-				*singletons_file = *optarg;
+				singletons_file = optarg;
 				break;
 			case 'a':
-				*min = *optarg;
+				min = optarg;
 				break;
 			case 'b':
-				*max = *optarg;
+				max = optarg;
 				break;
 			case '?':
 				exit(EXIT_FAILURE);
+				break;
+			case -1:
 				break;
 			default:
 				std::cerr << "Unable to properly parse options. Aborting . . .\n";
@@ -82,6 +82,7 @@ char** ArgParser::parse_args(int argc, char **argv){
 		}
 
 	}
+
 
 	// return to_return;
 	return ret;

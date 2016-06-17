@@ -153,6 +153,7 @@ int main (int argc, char **argv){
 
 	ArgParser p;
 	char** args = p.parse_args(argc,argv);
+	
 	// for(char* z : args){
 	// 	std::cout << z << "\t" << *z << "\n";
 	// }
