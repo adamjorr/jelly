@@ -14,6 +14,8 @@ ArgParser::arg_struc ArgParser::parse_args(int argc, char **argv){
 	std::string out1_file;
 	std::string out2_file;
 	std::string singletons_file;
+	std::string threads;
+
 	std::string min;
 	std::string max;
 	arg_struc to_return;
@@ -29,6 +31,7 @@ ArgParser::arg_struc ArgParser::parse_args(int argc, char **argv){
 		{"out1", required_argument, 0, 'p'},
 		{"out2", required_argument, 0, 'q'},
 		{"singletons", required_argument, 0, 's'},
+		{"threads", required_argument, 0, 't'},
 		//these do not have a short option
 		{"min", required_argument, 0, 'a'},
 		{"max", required_argument, 0, 'b'},
@@ -36,7 +39,7 @@ ArgParser::arg_struc ArgParser::parse_args(int argc, char **argv){
 		{0,0,0,0}
 	};
 
-	const char * shortopts = "g:i:1:2:o:p:q:s:";
+	const char * shortopts = "g:i:1:2:o:p:q:s:t:";
 	int c = 0;
 	while (c != -1){
 		c = getopt_long_only(argc, argv, shortopts, long_options, &option_index);
@@ -71,6 +74,9 @@ ArgParser::arg_struc ArgParser::parse_args(int argc, char **argv){
 			case 'b':
 				max = optarg;
 				break;
+			case 't':
+				threads = optarg;
+				break;
 			case '?':
 				exit(EXIT_FAILURE);
 				break;
@@ -83,9 +89,8 @@ ArgParser::arg_struc ArgParser::parse_args(int argc, char **argv){
 
 	}
 
-	to_return = {graph_file, input_file, input1_file, input2_file, out_file, out1_file, out2_file, singletons_file, min, max};
+	to_return = {graph_file, input_file, input1_file, input2_file, out_file, out1_file, out2_file, singletons_file, threads, min, max};
 
-	// std::array<std::string,10> to_return = {graph_file, input_file, input1_file, input2_file, out_file, out1_file, out2_file, singletons_file, min, max};
 	return to_return;
 
 }

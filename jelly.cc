@@ -17,13 +17,22 @@ Ensure min or max is specified unless g is specified (ie using to solely output 
 
 Load inputs
 Build (or load) Jellyfish graph
+	graph g;
+	if ! args.graph:
+		g = build_graph()
+	else:
+		if -e args.graph:
+			g = load_graph()
+		else:
+			g = build_graph()
+			g.print_graph(args.graph)
 iterate through reads (in graph if possible, otherwise in file if provided)
 Spit to file if read is good
 
 
 
 
-the kmer function for this is:
+the khmer function for this is:
 
 void Hashtable::get_median_count(const std::string &s,
                                  BoundedCounterType &median,
@@ -80,7 +89,7 @@ int main (int argc, char **argv){
 
 	ArgParser::arg_struc args = ArgParser::parse_args(argc,argv);
 
-	std::cout << args.input_file;
+	std::cout << args.input_file << "\n";
 
 	exit(0);
 

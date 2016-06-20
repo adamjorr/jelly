@@ -15,10 +15,12 @@ class ArgParser{
 			std::string out1_file;
 			std::string out2_file;
 			std::string singletons_file;
+			std::string threads;
 			std::string min;
 			std::string max;
 		};
 		static arg_struc parse_args(int argc, char **argv);
+
 
 };
 
