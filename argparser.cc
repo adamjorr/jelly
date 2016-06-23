@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <iostream>
 #include <string>
+#include <cstdlib>
 
 ArgParser::arg_struc ArgParser::parse_args(int argc, char **argv){
 

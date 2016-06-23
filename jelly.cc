@@ -31,8 +31,13 @@ Spit to file if read is good
 
 
 
+notable jellyfish code:
+	sub_commands/count_main.cc#248-253 //code for writing hash to output
+	typedef jellyfish::cooperative::hash_counter<jellyfish::mer_dna> mer_hash //jellyfish.hpp
 
-the khmer function for this is:
+
+
+the khmer function for doing this is:
 
 void Hashtable::get_median_count(const std::string &s,
                                  BoundedCounterType &median,
@@ -83,6 +88,7 @@ void Hashtable::get_kmer_counts(const std::string &s,
 #include <iostream>
 #include <getopt.h>
 #include <typeinfo>
+#include <cstdlib>
 #include "argparser.h"
 
 int main (int argc, char **argv){
@@ -91,8 +97,7 @@ int main (int argc, char **argv){
 
 	std::cout << args.input_file << "\n";
 
-	exit(0);
-
+	exit(EXIT_SUCCESS);
 }
 
 
