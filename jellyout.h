@@ -26,6 +26,6 @@ class Jellyout{
 
 };
 
-std::ostream &operator<< (std::ostream &output, const kseq_t* seq);
+std::ostream& operator<< (std::ostream &output, const kseq_t* seq);
 
 #endif

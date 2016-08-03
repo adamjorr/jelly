@@ -15,7 +15,7 @@ Jellyout::Jellyout(std::string out_filename, int num_threads) :
 			fout.open(out_filename);
 			fp = &fout;
 		}
-	};
+	}
 
 Jellyout::~Jellyout(){
 	if (fp != &std::cout){
