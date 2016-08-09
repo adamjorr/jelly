@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <jellyfish/jellyfish.hpp>
+#include <jellyfish/hash_counter.hpp>
 
 KSEQ_INIT(gzFile, gzread);
 
@@ -28,7 +29,8 @@ class Jellyin{
 	public:
 		static std::unique_ptr<binary_reader> read_hash(std::string fname); //called once, returning an iterator over the hash
 		static std::unique_ptr<Jellyit> read_fastq(std::string fname); //called once, returning an iterator over the fastq
-		static std::unique_ptr<mer_hash> get_hash(std::string fname);//return a hash from FASTQ file(s)
+		static std::unique_ptr<mer_hash> create_hash(std::string fname);//return a hash from FASTQ file(s)
+		static std::unique_ptr<mer_hash> open_hash(std::string fname);//return a hash object from a hash file
 
 };
 
