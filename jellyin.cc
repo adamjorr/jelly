@@ -1,11 +1,15 @@
 
 #include "jellyin.h"
+#include "kmer_counter.h"
 #include <htslib/kseq.h>
 #include <zlib.h>
 #include <iostream>
 #include <memory>
 #include <jellyfish/hash_counter.hpp>
 #include <thread>
+#include <mutex>
+
+std::mutex mtx;
 
 //called once, returning an iterator
 std::unique_ptr<binary_reader> Jellyin::read_hash(std::string fname){
@@ -33,14 +37,30 @@ std::unique_ptr<mer_hash> Jellyin::create_hash(std::string fname){
 	const uint32_t num_threads  = 16; // Number of concurrent threads
 	const uint32_t counter_len  = 7;  // Minimum length of counting field
 	const bool     canonical    = true; // Use canonical representation
-	std::unique_ptr<mer_hash> hash(new mer_hash(hash_size,jellyfish::mer_dna::k()*2,counter_len,num_threads,num_reprobes));
-	mer_counter counter(num_threads,hash,)
+	mer_hash hash(new mer_hash(hash_size,jellyfish::mer_dna::k()*2,counter_len,num_threads,num_reprobes));
+	// kmer_qual_counter counter(jellyfish::mer_dna::k,num_threads,3 * num_threads, 4096, hash, new StreamIterator)
+	kmer_qual_counter counter(num_threads, hash, fileit.begin(), fileit.end(), fileit.end(), fileit.end(), fileit.length());
 
 }
 
+//multithreaded function to add to a hash
+void add_to_hash(mer_hash* hash, binary_reader* reader){
+	mtx.lock();
+	if (reader->next()){
+		auto k = new reader->key(); //make sure we don't keep k and v around
+		auto v = new reader->val(); //since we're doing this recursively
+		mtx.unlock();
+		hash->add(k,v);
+		delete k;
+		delete v;
+		add_to_hash(hash, reader);
+	} else {
+		mtx.unlock();
+		hash->done();
+	}
+}
+
 //return a hash object from a hash file
-//TODO: Need to make this multithreaded.
-//put a lock on the binary reader and make each thread read?
 std::unique_ptr<mer_hash> Jellyin::open_hash(std::string fname, uint32_t num_threads){
 	jellyfish::mer_dna::k(25); // Set length of mers (k=25)
 	const uint64_t hash_size    = 10000000; // Initial size of hash.
@@ -49,22 +69,23 @@ std::unique_ptr<mer_hash> Jellyin::open_hash(std::string fname, uint32_t num_thr
 	const bool     canonical    = true; // Use canonical representation
 
 	std::unique_ptr<mer_hash> hash(new mer_hash(hash_size,jellyfish::mer_dna::k()*2,counter_len,num_threads,num_reprobes));
-
-	std::thread threads[num_threads - 1];
-	for (int i = 0; i < num_threads - 1; ++i){
-		threads[i] = std::thread()
-	}
-
-
-	
 	std::unique_ptr<binary_reader> in = read_hash(fname);
-	while (in->next()){
-		hash->add(in->key(),in->val());
+
+	// while (in->next()){
+	// 	hash->add(in->key(),in->val());
+	// }
+
+	std::vector<std::thread> threads;
+	for (int i = 0; i < num_threads; ++i){
+		threads.push_back(std::thread(add_to_hash, hash, in));
+		}
+
+	for (std::thread t : threads){
+		t.join();
 	}
+
 	return hash;
 }
-
-
 
 Jellyit::Jellyit(std::string filename) :
 	filename(filename) {
