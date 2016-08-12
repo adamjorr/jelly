@@ -9,3 +9,6 @@ jellyout.o : jellyout.h jellyout.cc
 
 jellyin.o : jellyin.h jellyin.cc
 	g++ --std=c++11 -c jellyin.cc -Wall -Wextra -pedantic
+
+kmer_counter.o : kmer_counter.h kmer_counter.cc
+	g++ --std=c++11 -c jellyin.cc -Wall -Wextra -pedantic

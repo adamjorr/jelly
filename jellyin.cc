@@ -30,7 +30,7 @@ std::unique_ptr<Jellyit> Jellyin::read_fastq(std::string fname){
 }
 
 //return a hash from FASTQ file(s)
-std::unique_ptr<mer_hash> Jellyin::create_hash(std::string fname){
+std::unique_ptr<mer_hash> Jellyin::create_hash(std::vector<const char*> fname){
 	jellyfish::mer_dna::k(25); // Set length of mers (k=25)
 	const uint64_t hash_size    = 10000000; // Initial size of hash.
 	const uint32_t num_reprobes = 126;
@@ -39,7 +39,9 @@ std::unique_ptr<mer_hash> Jellyin::create_hash(std::string fname){
 	const bool     canonical    = true; // Use canonical representation
 	mer_hash hash(new mer_hash(hash_size,jellyfish::mer_dna::k()*2,counter_len,num_threads,num_reprobes));
 	// kmer_qual_counter counter(jellyfish::mer_dna::k,num_threads,3 * num_threads, 4096, hash, new StreamIterator)
-	kmer_qual_counter counter(num_threads, hash, fileit.begin(), fileit.end(), fileit.end(), fileit.end(), fileit.length());
+	jellyfish::stream_manager<std::vector<const char*>::const_iterator> streams(fname.front(),fname.back());
+	sequence_qual_parser parser(num_threads * 3, 100, streams.nb_streams(), &streams);
+	Kmer_counter counter(num_threads, &hash, &parser);
 
 }
 
