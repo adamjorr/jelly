@@ -10,11 +10,12 @@ import pysam
 
 
 
-
+def get_erroneous_reads(graphfile,samfile):
+	htable = khmer.load_countgraph(graphfile)
 
 def get_erroneous_kmers(graphfile, samfile):
-	htable = khmer.load_countgraph(graphfile)
-	
+	ereads = get_erroneous_reads(graphfile,samfile)
+	return [k for kmer in foo(ereads) for k in kmer]
 
 
 
