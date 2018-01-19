@@ -110,7 +110,7 @@ def main():
 	# print(htable.get("ATG"))
 
 	#arguments
-	samfilename = ''
+	samfilename = '/home/adam/variant-standards/CHM-eval/hg19/chr1/chr1_confident.'
 	fafilename = ''
 	bedfilename = ''
 	vcffilename = ''
