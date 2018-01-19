@@ -9,7 +9,9 @@ import vcf
 import pybedtools
 from pybedtools import BedTool
 from khmer import khmer_args
-
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # def _get_confident_regions(bedfilename):
 # 	'''
@@ -31,11 +33,11 @@ def get_confident_regions(bedfilename):
 
 
 def load_vcf(vcffilename, conf_regions):
-	regionstr = ','.join(conf_regions)
-	vcf = pysam.VariantFile(vcffilename, drop_samples = True)
 	d = dict()
-	for record in vcf.fetch(region = regionstr):
-		d.setdefault(record.chrom, list()).append(record.pos)
+	for regionstr in conf_regions:
+		vcf = pysam.VariantFile(vcffilename, drop_samples = True)
+		for record in vcf.fetch(region = regionstr):
+			d.setdefault(record.chrom, list()).append(record.pos)
 	return d
 
 def get_ref_base(reffile, chrom, pos):
@@ -55,43 +57,40 @@ def count_from_plp(pileups, refbase, errortable, countedreads):
 				for k in get_kmers_covering(read.alignment.query_sequence, read.query_position, errortable.ksize()):
 					errortable.count(k)
 			else:
-				skippedcounts++
+				skippedcounts += 1
 	print(sys.stderr, "Skipped {} to avoid double counting them.".format(skippedcounts))
 	return errortable, countedreads
 
 #for now ignore sites in the vcf
 #if there are two errors in a read, only the first will be counted as an error.
 def count_erroneous_kmers(samfile, ref, conf_regions, vcf, errortable):
-	#try this and see if it works
-	regionstr = ','.join(conf_regions)
 	countedreads = set()
 	# fastq = io.StringIO()
-	# for regionstr in get_confident_regions(conf_regions):
-	for col in samfile.pileup(region = regionstr, truncate = True):
-		if col.reference_name in vcf and col.pos in vcf[col.reference_name]:
-				continue
-		else:
-			refbase = get_ref_base(ref, col.reference_name, col.pos)
-			errortable, countedreads = count_from_plp(col.pileups, refbase, errortable, countedreads)
+	for regionstr in conf_regions:
+		for col in samfile.pileup(region = regionstr, truncate = True):
+			if col.reference_name in vcf and col.pos in vcf[col.reference_name]:
+					continue
+			else:
+				refbase = get_ref_base(ref, col.reference_name, col.pos)
+				errortable, countedreads = count_from_plp(col.pileups, refbase, errortable, countedreads)
 	return errortable
 
 def count_all(samfile, conf_regions, alltable):
-	regionstr = ','.join(conf_regions)
-	# fastq = io.StringIO()
-	for read in samfile.fetch(region=regionstr):
-		alltable.consume(read.query_sequence)
-		# fastq.write('@{}\n{}\n+\n{}\n'.format(read.query_name, read.query_sequence, read.query_qualities))
+	for regionstr in conf_regions:
+		for read in samfile.fetch(region=regionstr):
+			alltable.consume(read.query_sequence)
+			# fastq.write('@{}\n{}\n+\n{}\n'.format(read.query_name, read.query_sequence, read.query_qualities))
 	return alltable
 
 def newinfo(*kwargs):
 	return
 
 def get_abundances(samfile, conf_regions, totaltable, errortable):
-	regionstr = ",".join(conf_regions)
 	totalabund, errorabund = [], []
-	for read in samfile.fetch(region=regionstr):
-		totalabund.extend(totaltable.get_kmer_counts(read.query_sequence))
-		errorabund.extend(errortable.get_kmer_counts(read.query_sequence))
+	for regionstr in conf_regions:
+		for read in samfile.fetch(region=regionstr):
+			totalabund.extend(totaltable.get_kmer_counts(read.query_sequence))
+			errorabund.extend(errortable.get_kmer_counts(read.query_sequence))
 	return totalabund, errorabund
 
 def main():
@@ -110,10 +109,11 @@ def main():
 	# print(htable.get("ATG"))
 
 	#arguments
-	samfilename = '/home/adam/variant-standards/CHM-eval/hg19/chr1/chr1_confident.'
-	fafilename = ''
-	bedfilename = ''
-	vcffilename = ''
+	fileprefix = '/home/adam/variant-standards/CHM-eval/hg19/chr1/'
+	samfilename = fileprefix + 'chr1.bam'
+	fafilename = fileprefix + 'chr1.fa'
+	bedfilename = fileprefix + 'chr1_confident.bed.gz'
+	vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
 	#set up hashes
 	khmer.khmer_args.info = newinfo
@@ -128,9 +128,11 @@ def main():
 	vcf = load_vcf(vcffilename, conf_regions)
 	alltable = count_all(samfile, conf_regions, alltable)
 	errortable = count_erroneous_kmers(samfile, reffile, conf_regions, vcf, errortable)
-	totalabund, errorabund = get_abundances(samfile, conf_regions, totaltable, errortable)
+	totalabund, errorabund = get_abundances(samfile, conf_regions, alltable, errortable)
 
+	print(totalabund[0:10])
 
+	sns.distplot(totalabund, color = "m")
 
 
 if __name__ == '__main__':
