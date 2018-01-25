@@ -46,7 +46,7 @@ def count_mers(samfile, ref, vcf, conf_regions, alltable, errortable):
             alltable.consume(read.query_sequence)
             refchr = read.reference_name
             refpositions = read.get_reference_positions(full_length=True)
-            errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(reffile, refchr, pos)]
+            errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref, refchr, pos)]
             if not errorpositions:
                 continue
             else:
@@ -83,30 +83,30 @@ def main():
     # print(htable.get("ATG"))
 
     #arguments
-    fileprefix = '/home/adam/variant-standards/CHM-eval/hg19/chr1/'
+    fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.fa'
     bedfilename = fileprefix + 'chr1_confident.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
-    print(sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Preparing hashes . . .")
+    print(file=sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Preparing hashes . . .")
     khmer.khmer_args.info = newinfo
     args = khmer.khmer_args.build_counting_args().parse_args()
     alltable = khmer.khmer_args.create_countgraph(args)
     errortable = khmer.khmer_args.create_countgraph(args)
 
     #do things
-    print(sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Loading Files . . .")
+    print(file=sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Loading Files . . .")
     samfile = pysam.AlignmentFile(samfilename)
     reffile = pysam.FastaFile(fafilename)
     conf_regions = get_confident_regions(bedfilename)
     vcf = load_vcf(vcffilename, conf_regions)
 
-    print(sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .")
+    print(file=sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .")
     alltable, errortable = count_mers(samfile, reffile, vcf, conf_regions, alltable, errortable)
 
-    print(sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .")
+    print(file=sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .")
     totalabund, errorabund = get_abundances(samfile, conf_regions, alltable, errortable)
 
     print(totalabund[0:10])
