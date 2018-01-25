@@ -64,6 +64,9 @@ def get_abundances(samfile, conf_regions, totaltable, errortable):
             errorabund.extend(errortable.get_kmer_counts(read.query_sequence))
     return totalabund, errorabund
 
+def newinfo(*kwargs):
+    return
+
 def main():
     # args = argparse() #TODO
     # print(get_kmers_covering("ATCGAA",3,4))
@@ -87,23 +90,23 @@ def main():
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
-    print(sys.stderr, '[',datetime.today().isoformat(' ', 'seconds'), ']', "Preparing hashes . . .")
+    print(sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Preparing hashes . . .")
     khmer.khmer_args.info = newinfo
     args = khmer.khmer_args.build_counting_args().parse_args()
     alltable = khmer.khmer_args.create_countgraph(args)
     errortable = khmer.khmer_args.create_countgraph(args)
 
     #do things
-    print(sys.stderr, '[',datetime.today().isoformat(' ', 'seconds'), ']', "Loading Files . . .")
+    print(sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Loading Files . . .")
     samfile = pysam.AlignmentFile(samfilename)
     reffile = pysam.FastaFile(fafilename)
     conf_regions = get_confident_regions(bedfilename)
     vcf = load_vcf(vcffilename, conf_regions)
 
-    print(sys.stderr, '[',datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .")
+    print(sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .")
     alltable, errortable = count_mers(samfile, reffile, vcf, conf_regions, alltable, errortable)
 
-    print(sys.stderr, '[',datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .")
+    print(sys.stderr, '[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .")
     totalabund, errorabund = get_abundances(samfile, conf_regions, alltable, errortable)
 
     print(totalabund[0:10])
