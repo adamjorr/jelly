@@ -12,17 +12,7 @@ from khmer import khmer_args
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-
-# def _get_confident_regions(bedfilename):
-#   '''
-#   get BED-coordinate regions
-#   '''
-#   bed = BedTool(bedfilename)
-#   d = dict()
-#   for interval in bed:
-#       dict.setdefault(interval.chr, list())
-#       d[interval.chr].append([interval.start, interval.stop])
-#   return d
+import datetime
 
 def get_confident_regions(bedfilename):
     '''
@@ -48,46 +38,23 @@ def get_kmers_covering(read, pos, ksize):
     return [read[start:start+ksize] for start in range(0,len(read)-ksize+1)]
 
 def split_into_kmers(read, ksize):
-	return {read[start:start+ksize] : range(start,start+ksize) for start in range(0,len(read)-ksize+1)}
+    return {read[start:start+ksize] : range(start,start+ksize) for start in range(0,len(read)-ksize+1)}
 
-def count_from_plp(pileups, refbase, errortable, countedreads):
-    skippedcounts = 0
-    for read in pileups:
-        #base is aligned and is an error
-        if not read.is_del and not read.is_refskip and read.alignment.query_sequence[read.query_position] != refbase:
-            if read.alignment.query_name not in countedreads:
-                countedreads.add(read.alignment.query_name)
-                # fastq.write('@{}\n{}\n+\n{}\n'.format(read.query_name, read.query_sequence, read.query_qualities))
-                for k in get_kmers_covering(read.alignment.query_sequence, read.query_position, errortable.ksize()):
-                    errortable.count(k)
-            else:
-                skippedcounts += 1
-    # print(sys.stderr, "Skipped {} to avoid double counting them.".format(skippedcounts))
-    return errortable, countedreads
-
-#for now ignore sites in the vcf
-#if there are two errors in a read, only the first will be counted as an error.
-def count_erroneous_kmers(samfile, ref, conf_regions, vcf, errortable):
-    countedreads = set()
-    # fastq = io.StringIO()
-    for regionstr in conf_regions:
-        for col in samfile.pileup(region = regionstr, truncate = True):
-            if col.reference_name in vcf and col.pos in vcf[col.reference_name]:
-                    continue
-            else:
-                refbase = get_ref_base(ref, col.reference_name, col.pos)
-                errortable, countedreads = count_from_plp(col.pileups, refbase, errortable, countedreads)
-    return errortable
-
-def count_all(samfile, conf_regions, alltable):
+def count_mers(samfile, ref, vcf, conf_regions, alltable, errortable):
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             alltable.consume(read.query_sequence)
-            # fastq.write('@{}\n{}\n+\n{}\n'.format(read.query_name, read.query_sequence, read.query_qualities))
-    return alltable
-
-def newinfo(*kwargs):
-    return
+            refchr = read.reference_name
+            refpositions = read.get_reference_positions(full_length=True)
+            errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(reffile, refchr, pos)]
+            if not errorpositions:
+                continue
+            else:
+                kmerdict = split_into_kmers(read.query_sequence, errortable.ksize())
+                errorkmers = [k for k,v in kmerdict.items() if any([p in v for p in errorpositions])]
+                for k in errorkmers:
+                    errortable.add(k)
+    return alltable, errortable
 
 def get_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
@@ -96,22 +63,6 @@ def get_abundances(samfile, conf_regions, totaltable, errortable):
             totalabund.extend(totaltable.get_kmer_counts(read.query_sequence))
             errorabund.extend(errortable.get_kmer_counts(read.query_sequence))
     return totalabund, errorabund
-
-def count_mers(samfile, ref, vcf, conf_regions, totaltable, errortable):
-	for regionstr in conf_regions:
-		for read in samfile.fetch(region=regionstr):
-			alltable.consume(read.query_sequence)
-			refpositions = read.get_reference_positions(full_length=True)
-			#DEBUG:
-			# print(refpositions)
-			# exit()
-			errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != reffile.fetch(region = pos)]
-			kmerdict = split_into_kmers(read.query_sequence, errortable.ksize())
-			for k,v in kmerdict:
-				for pos in errorpositions:
-					if(pos in v):
-			errorkmers = [k for k,v in kmerdict if any(errorpositions in v)]
-
 
 def main():
     # args = argparse() #TODO
@@ -136,21 +87,23 @@ def main():
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
+    print(sys.stderr, '[',datetime.today().isoformat(' ', 'seconds'), ']', "Preparing hashes . . .")
     khmer.khmer_args.info = newinfo
     args = khmer.khmer_args.build_counting_args().parse_args()
-    alltable = khmer.khmer_args.create_countgraph(args, ksize=3)
-    errortable = khmer.khmer_args.create_countgraph(args, ksize=3)
+    alltable = khmer.khmer_args.create_countgraph(args)
+    errortable = khmer.khmer_args.create_countgraph(args)
 
     #do things
+    print(sys.stderr, '[',datetime.today().isoformat(' ', 'seconds'), ']', "Loading Files . . .")
     samfile = pysam.AlignmentFile(samfilename)
     reffile = pysam.FastaFile(fafilename)
     conf_regions = get_confident_regions(bedfilename)
     vcf = load_vcf(vcffilename, conf_regions)
 
-    count_mers(samfile, reffile, vcf, conf_regions, totaltable, errortable)
+    print(sys.stderr, '[',datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .")
+    alltable, errortable = count_mers(samfile, reffile, vcf, conf_regions, alltable, errortable)
 
-    alltable = count_all(samfile, conf_regions, alltable)
-    errortable = count_erroneous_kmers(samfile, reffile, conf_regions, vcf, errortable)
+    print(sys.stderr, '[',datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .")
     totalabund, errorabund = get_abundances(samfile, conf_regions, alltable, errortable)
 
     print(totalabund[0:10])
