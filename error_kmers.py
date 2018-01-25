@@ -45,7 +45,10 @@ def get_ref_base(reffile, chrom, pos):
     return reffile.fetch(region=regionstr)
 
 def get_kmers_covering(read, pos, ksize):
-    return [read[start:start+ksize] for start in range(0,len(read)-ksize+1) if pos >= start and pos < start+ksize]
+    return [read[start:start+ksize] for start in range(0,len(read)-ksize+1)]
+
+def split_into_kmers(read, ksize):
+	return {read[start:start+ksize] : range(start,start+ksize) for start in range(0,len(read)-ksize+1)}
 
 def count_from_plp(pileups, refbase, errortable, countedreads):
     skippedcounts = 0
@@ -94,6 +97,22 @@ def get_abundances(samfile, conf_regions, totaltable, errortable):
             errorabund.extend(errortable.get_kmer_counts(read.query_sequence))
     return totalabund, errorabund
 
+def count_mers(samfile, ref, vcf, conf_regions, totaltable, errortable):
+	for regionstr in conf_regions:
+		for read in samfile.fetch(region=regionstr):
+			alltable.consume(read.query_sequence)
+			refpositions = read.get_reference_positions(full_length=True)
+			#DEBUG:
+			# print(refpositions)
+			# exit()
+			errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != reffile.fetch(region = pos)]
+			kmerdict = split_into_kmers(read.query_sequence, errortable.ksize())
+			for k,v in kmerdict:
+				for pos in errorpositions:
+					if(pos in v):
+			errorkmers = [k for k,v in kmerdict if any(errorpositions in v)]
+
+
 def main():
     # args = argparse() #TODO
     # print(get_kmers_covering("ATCGAA",3,4))
@@ -127,6 +146,9 @@ def main():
     reffile = pysam.FastaFile(fafilename)
     conf_regions = get_confident_regions(bedfilename)
     vcf = load_vcf(vcffilename, conf_regions)
+
+    count_mers(samfile, reffile, vcf, conf_regions, totaltable, errortable)
+
     alltable = count_all(samfile, conf_regions, alltable)
     errortable = count_erroneous_kmers(samfile, reffile, conf_regions, vcf, errortable)
     totalabund, errorabund = get_abundances(samfile, conf_regions, alltable, errortable)
