@@ -85,7 +85,7 @@ def main():
     #arguments
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
-    fafilename = fileprefix + 'chr1.fa'
+    fafilename = fileprefix + 'chr1.renamed.fa'
     bedfilename = fileprefix + 'chr1_confident.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
