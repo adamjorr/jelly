@@ -13,6 +13,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import datetime
+import jellyfish
 
 def get_confident_regions(bedfilename):
     '''
@@ -68,6 +69,30 @@ def get_abundances(samfile, conf_regions, totaltable, errortable):
             errorabund.extend(errortable.get_kmer_counts(read.query_sequence))
     return totalabund, errorabund
 
+def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize):
+	for regionstr in conf_regions:
+		for read in samfile.fetch(region=regionstr):
+			allmers = alltable.string_canonicals(read.query_sequence)
+			for mer in allmers:
+				alltable.add(mer,1)
+			refchr = read.reference_name
+			refpositions = read.get_reference_positions(full_length = True)
+			refpositions = [p for p in refpositions if p not in vcf[refchr]] #ignore sites in VCF
+			errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref, refchr, pos)]
+			if not errorpositions:
+				continue
+			else:
+				kmerdict = split_into_kmers(read.query_sequence, ksize)
+				errorkmers = [k for k,v in kmerdict.items() if any([p in v for p in errorpositions])]
+				for k in errorkmers:
+					mer = jellyfish.MerDNA(k)
+					mer.canonicalize()
+					errortable.add(mer,1)
+	return alltable, errortable
+
+def jellyfish_abundances(alltable, errortable):
+	pass
+
 def newinfo(*kwargs):
     return
 
@@ -95,10 +120,14 @@ def main():
 
     #set up hashes
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Preparing hashes . . .", file=sys.stderr)
-    khmer.khmer_args.info = newinfo
-    args = khmer.khmer_args.build_counting_args().parse_args()
-    alltable = khmer.khmer_args.create_countgraph(args)
-    errortable = khmer.khmer_args.create_countgraph(args)
+    # khmer.khmer_args.info = newinfo
+    # args = khmer.khmer_args.build_counting_args().parse_args()
+    # alltable = khmer.khmer_args.create_countgraph(args)
+    # errortable = khmer.khmer_args.create_countgraph(args)
+    jellyfish.MerDNA.k(30)
+    alltable = jellyfish.HashCounter(1024,8)
+    errortable = jellyfish.HashCounter(1024,8)
+
 
     #do things
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Loading Files . . .", file=sys.stderr)
