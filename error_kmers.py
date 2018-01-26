@@ -30,9 +30,13 @@ def load_vcf(vcffilename, conf_regions):
             d.setdefault(record.chrom, list()).append(record.pos)
     return d
 
-def get_ref_base(reffile, chrom, pos):
-    regionstr = '{0}:{1}-{1}'.format(str(chrom),pos)
-    return reffile.fetch(region=regionstr)
+def get_ref_dict(reffilename):
+    reffile = pysam.FastaFile(reffilename)
+    return {r : reffile.fetch(region=r) for r in reffile.references}
+
+def get_ref_base(refdict, chrom, pos):
+    """pos is 1 based"""
+    return refdict[chrom][pos - 1]
 
 def get_kmers_covering(read, pos, ksize):
     return [read[start:start+ksize] for start in range(0,len(read)-ksize+1)]
@@ -45,7 +49,7 @@ def count_mers(samfile, ref, vcf, conf_regions, alltable, errortable):
         for read in samfile.fetch(region=regionstr):
             alltable.consume(read.query_sequence)
             refchr = read.reference_name
-            refpositions = read.get_reference_positions(full_length=True)
+            refpositions = read.get_reference_positions(full_length=True) #these are 1-based positions
             errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref, refchr, pos)]
             if not errorpositions:
                 continue
@@ -99,12 +103,12 @@ def main():
     #do things
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Loading Files . . .", file=sys.stderr)
     samfile = pysam.AlignmentFile(samfilename)
-    reffile = pysam.FastaFile(fafilename)
+    refdict = get_ref_dict(fafilename)
     conf_regions = get_confident_regions(bedfilename)
     vcf = load_vcf(vcffilename, conf_regions)
 
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .", file=sys.stderr)
-    alltable, errortable = count_mers(samfile, reffile, vcf, conf_regions, alltable, errortable)
+    alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
 
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .", file=sys.stderr)
     totalabund, errorabund = get_abundances(samfile, conf_regions, alltable, errortable)
