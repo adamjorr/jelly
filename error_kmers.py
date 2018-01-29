@@ -96,7 +96,7 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
-                totalabund.extend(alltable.get(mer))
+                totalabund.extend(totaltable.get(mer))
                 errorabund.extend(errortable.get(mer))
     return totalabund, errorabund
 
@@ -122,7 +122,7 @@ def main():
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.renamed.fa'
-    bedfilename = fileprefix + 'chr1_first10k.bed.gz'
+    bedfilename = fileprefix + 'chr1_first3.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
