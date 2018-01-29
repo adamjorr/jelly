@@ -96,8 +96,8 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
-                totalabund.extend(totaltable.get(mer))
-                errorabund.extend(errortable.get(mer))
+                totalabund.append(totaltable.get(mer))
+                errorabund.append(errortable.get(mer))
     return totalabund, errorabund
 
 def newinfo(*kwargs):
