@@ -9,11 +9,11 @@ import vcf
 import pybedtools
 from pybedtools import BedTool
 from khmer import khmer_args
-import numpy as np
-import seaborn as sns
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
 import datetime
 import jellyfish
 
