@@ -70,28 +70,28 @@ def get_abundances(samfile, conf_regions, totaltable, errortable):
     return totalabund, errorabund
 
 def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize):
-	for regionstr in conf_regions:
-		for read in samfile.fetch(region=regionstr):
-			allmers = jellyfish.string_canonicals(read.query_sequence)
-			for mer in allmers:
-				alltable.add(mer,1)
-			refchr = read.reference_name
-			refpositions = read.get_reference_positions(full_length = True)
-			refpositions = [p for p in refpositions if p not in vcf[refchr]] #ignore sites in VCF
-			errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref, refchr, pos)]
-			if not errorpositions:
-				continue
-			else:
-				kmerdict = split_into_kmers(read.query_sequence, ksize)
-				errorkmers = [k for k,v in kmerdict.items() if any([p in v for p in errorpositions])]
-				for k in errorkmers:
-					mer = jellyfish.MerDNA(k)
-					mer.canonicalize()
-					errortable.add(mer,1)
-	return alltable, errortable
+    for regionstr in conf_regions:
+        for read in samfile.fetch(region=regionstr):
+            allmers = jellyfish.string_canonicals(read.query_sequence)
+            for mer in allmers:
+                alltable.add(mer,1)
+            refchr = read.reference_name
+            refpositions = read.get_reference_positions(full_length = True)
+            refpositions = [p for p in refpositions if p not in vcf[refchr]] #ignore sites in VCF
+            errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref, refchr, pos)]
+            if not errorpositions:
+                continue
+            else:
+                kmerdict = split_into_kmers(read.query_sequence, ksize)
+                errorkmers = [k for k,v in kmerdict.items() if any([p in v for p in errorpositions])]
+                for k in errorkmers:
+                    mer = jellyfish.MerDNA(k)
+                    mer.canonicalize()
+                    errortable.add(mer,1)
+    return alltable, errortable
 
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
-	totalabund, errorabund = [], []
+    totalabund, errorabund = [], []
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
