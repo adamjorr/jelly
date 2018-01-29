@@ -72,7 +72,7 @@ def get_abundances(samfile, conf_regions, totaltable, errortable):
 def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize):
 	for regionstr in conf_regions:
 		for read in samfile.fetch(region=regionstr):
-			allmers = alltable.string_canonicals(read.query_sequence)
+			allmers = jellyfish.string_canonicals(read.query_sequence)
 			for mer in allmers:
 				alltable.add(mer,1)
 			refchr = read.reference_name
@@ -90,8 +90,15 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
 					errortable.add(mer,1)
 	return alltable, errortable
 
-def jellyfish_abundances(alltable, errortable):
-	pass
+def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
+	totalabund, errorabund = [], []
+    for regionstr in conf_regions:
+        for read in samfile.fetch(region=regionstr):
+            allmers = jellyfish.string_canonicals(read.query_sequence)
+            for mer in allmers:
+                totalabund.extend(alltable.get(mer))
+                errorabund.extend(errortable.get(mer))
+    return totalabund, errorabund
 
 def newinfo(*kwargs):
     return
@@ -115,7 +122,7 @@ def main():
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.renamed.fa'
-    bedfilename = fileprefix + 'chr1_confident.bed.gz'
+    bedfilename = fileprefix + 'chr1_first10k.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
@@ -137,10 +144,10 @@ def main():
     vcf = load_vcf(vcffilename, conf_regions)
 
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .", file=sys.stderr)
-    alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
+    alltable, errortable = jellyfish_count(samfile, refdict, vcf, conf_regions, alltable, errortable,jellyfish.MerDNA.k())
 
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .", file=sys.stderr)
-    totalabund, errorabund = get_abundances(samfile, conf_regions, alltable, errortable)
+    totalabund, errorabund = jellyfish_abundances(samfile, conf_regions, alltable, errortable)
 
     print(totalabund[0:10])
 
