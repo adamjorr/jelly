@@ -114,7 +114,7 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
             errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
             for k in errorkmers:
                 errortable.add(mer,1)
-    return (alltable, errortable)
+    return (totaltable, errortable)
 
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
