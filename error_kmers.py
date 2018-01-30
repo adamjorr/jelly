@@ -100,7 +100,7 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
         reference_positions = read[2]
 
         allmers = jellyfish.string_canonicals(query_sequence)
-        lmers = [mer for mer in allmers]
+        lmers = [str(mer) for mer in allmers]
         refpositions = [p for p in reference_positions if p not in vcf[reference_name]]
         errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or query_sequence[i] != get_ref_base(ref,reference_name,pos)]
         if not errorpositions:
@@ -145,6 +145,9 @@ def getcount_manytables(tables, mer):
 def get_readinfo(samfile, region):
     return [(r.query_sequence, r.reference_name, r.get_reference_positions(full_length=True)) for r in samfile.fetch(region = region)]
 
+def tstamp():
+    return '[ ' + datetime.datetime.today().isoformat(' ', 'seconds') + ' ]'
+
 def main():
     # args = argparse() #TODO
     # print(get_kmers_covering("ATCGAA",3,4))
@@ -168,7 +171,7 @@ def main():
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
-    print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Preparing hashes . . .", file=sys.stderr)
+    print(tstamp(), "Preparing hashes . . .", file=sys.stderr)
     # khmer.khmer_args.info = newinfo
     # args = khmer.khmer_args.build_counting_args().parse_args()
     # alltable = khmer.khmer_args.create_countgraph(args)
@@ -179,29 +182,37 @@ def main():
 
 
     #do things
-    print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Loading Files . . .", file=sys.stderr)
+    print(tstamp(), "Loading Files . . .", file=sys.stderr)
     samfile = pysam.AlignmentFile(samfilename)
     refdict = get_ref_dict(fafilename)
     conf_regions = get_confident_regions(bedfilename)
     vcf = load_vcf(vcffilename, conf_regions)
 
 
-    print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .", file=sys.stderr)
+    print(tstamp(), file=sys.stderr)
     # alltable, errortable = jellyfish_count(samfile, refdict, vcf, conf_regions, alltable, errortable,jellyfish.MerDNA.k())
 
     #try threaded
     with Pool(processes=16) as pool:
         results = [pool.apply_async(jellyfish_countregion, [get_readinfo(samfile, r),refdict,vcf,jellyfish.MerDNA.k()]) for r in conf_regions]
+        progress = 1
         for r in results:
+            print(tstamp(), "Job {} of {}".format(progress, len(results)), file=sys.stderr)
             totalmers, errormers = r.get()
-            map(alltable.add, totalmers, repeat(1))
-            map(errortable.add, errormers, repeat(1))    
-        bothmers = [r.get() for r in results]
+            for mer in totalmers:
+                m = jellyfish.MerDNA(mer)
+                m.canonicalize()
+                alltable.add(m,1)
+            for mer in errormers:
+                m = jellyfish.MerDNA(mer)
+                m.canonicalize()
+                errortable.add(m,1)
+
     # totalmers, errormers = zip(*bothmers)
     # map(alltable.add, totalmers, repeat(1))
     # map(errortable.add, errormers, repeat(1))
 
-    print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .", file=sys.stderr)
+    print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
     totalabund, errorabund = jellyfish_abundances(samfile, conf_regions, totaltable, errortable)
 
     print(totalabund[0:10])
