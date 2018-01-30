@@ -110,20 +110,20 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
             errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
     return (lmers, errorkmers)
 
-# def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
-#     totalabund, errorabund = [], []
-#     for regionstr in conf_regions:
-#         for read in samfile.fetch(region=regionstr):
-#             allmers = jellyfish.string_canonicals(read.query_sequence)
-#             for mer in allmers:
-#                 totalabund.append(getcount(totaltable, mer))
-#                 errorabund.append(getcount(errortable, mer))
-#     return totalabund, errorabund
-
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
-    totalabund = [getcount(totaltable, mer) for regionstr in conf_regions for read in samfile.fetch(region = regionstr) for mer in jellyfish.string_canonicals(read.query_sequence)]
-    errorabund = [getcount(errortable, mer) for regionstr in conf_regions for read in samfile.fetch(region = regionstr) for mer in jellyfish.string_canonicals(read.query_sequence)]
+    totalabund, errorabund = [], []
+    for regionstr in conf_regions:
+        for read in samfile.fetch(region=regionstr):
+            allmers = jellyfish.string_canonicals(read.query_sequence)
+            for mer in allmers:
+                totalabund.append(getcount(totaltable, mer))
+                errorabund.append(getcount(errortable, mer))
     return totalabund, errorabund
+
+# def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
+#     totalabund = [getcount(totaltable, mer) for regionstr in conf_regions for read in samfile.fetch(region = regionstr) for mer in jellyfish.string_canonicals(read.query_sequence)]
+#     errorabund = [getcount(errortable, mer) for regionstr in conf_regions for read in samfile.fetch(region = regionstr) for mer in jellyfish.string_canonicals(read.query_sequence)]
+#     return totalabund, errorabund
 
 def mer_ranges(mers,ksize):
     return [range(k,k+ksize) for k in range(len(mers))]
