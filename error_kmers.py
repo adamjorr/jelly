@@ -16,6 +16,8 @@ import numpy as np
 import seaborn as sns
 import datetime
 import jellyfish
+from itertools import repeat
+from multiprocessing import Pool
 
 def get_confident_regions(bedfilename):
     '''
@@ -91,23 +93,63 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
                     errortable.add(mer,1)
     return alltable, errortable
 
+def jellyfish_countregion(reads, ref, vcf, ksize):
+    totaltable = initialize_hash()
+    errortable = initialize_hash()
+    for read in reads:
+        allmers = jellyfish.string_canonicals(read.query_sequence)
+        lmers = [mer for mer in allmers]
+        for mer in lmers:
+            totaltable.add(mer,1)
+        refchr = read.reference_name
+        refpositions = read.get_reference_positions(full_length = True)
+        refpositions = [p for p in refpositions if p not in vcf[refchr]]
+        errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref,refchr,pos)]
+        if not errorpositions:
+            continue
+        else:
+            mranges = mer_ranges(lmers, ksize)
+            errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
+            for k in errorkmers:
+                errortable.add(mer,1)
+    return (alltable, errortable)
+
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
-                tabund = (totaltable.get(mer) if totaltable.get(mer) is not None else 0)
-                eabund = (errortable.get(mer) if errortable.get(mer) is not None else 0)
-                totalabund.append(tabund)
-                errorabund.append(eabund)
+                totalabund.append(getcount(totaltable, mer))
+                errorabund.append(getcount(errortable, mer))
+    return totalabund, errorabund
+
+def jellyfish_threaded_abundances(samfile, conf_regions, totaltables, errortables):
+    totalabund, errorabund = [], []
+    for regionstr in conf_regions:
+        for read in samfile.fetch(region = regionstr):
+            allmers = jellyfish.string_canonicals(read.query_sequence)
+            for mer in allmers:
+                totalabund.append(getcount_manytables(totaltables, mer))
+                errorabund.append(getcount_manytables(errortables, mer))
     return totalabund, errorabund
 
 def mer_ranges(mers,ksize):
     return [range(k,k+ksize) for k in range(len(mers))]
 
+def initialize_hash():
+    return jellyfish.HashCounter(1024,15)
+
 def newinfo(*kwargs):
     return
+
+def getcount(table, mer):
+    val = table.get(mer)
+    return val if val is not None else 0
+
+def getcount_manytables(tables, mer):
+    values = map(getcount, tables, repeat(mer))
+    return sum(values)
 
 def main():
     # args = argparse() #TODO
@@ -138,8 +180,8 @@ def main():
     # alltable = khmer.khmer_args.create_countgraph(args)
     # errortable = khmer.khmer_args.create_countgraph(args)
     jellyfish.MerDNA.k(30)
-    alltable = jellyfish.HashCounter(1024,8)
-    errortable = jellyfish.HashCounter(1024,8)
+    alltable = initialize_hash()
+    errortable = initialize_hash()
 
 
     #do things
@@ -149,11 +191,20 @@ def main():
     conf_regions = get_confident_regions(bedfilename)
     vcf = load_vcf(vcffilename, conf_regions)
 
+
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Counting . . .", file=sys.stderr)
-    alltable, errortable = jellyfish_count(samfile, refdict, vcf, conf_regions, alltable, errortable,jellyfish.MerDNA.k())
+    # alltable, errortable = jellyfish_count(samfile, refdict, vcf, conf_regions, alltable, errortable,jellyfish.MerDNA.k())
+
+    #try threaded
+    with Pool(processes=16) as pool:
+        results = [pool.apply_async(jellyfish_countregion, reads = samfile.fetch(region=r), ref = ref, vcf = vcf, ksize = jellyfish.MerDNA.k()) for r in conf_regions]
+        pool.close()
+        pool.join()
+        alltables = [r.get() for r in results]
+    totaltables, errortables = zip(*alltables) 
 
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .", file=sys.stderr)
-    totalabund, errorabund = jellyfish_abundances(samfile, conf_regions, alltable, errortable)
+    totalabund, errorabund = jellyfish_threaded_abundances(samfile, conf_regions, totaltables, errortables)
 
     print(totalabund[0:10])
     print(errorabund[0:10])
