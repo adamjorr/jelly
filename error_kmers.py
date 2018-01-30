@@ -197,7 +197,7 @@ def main():
 
     #try threaded
     with Pool(processes=16) as pool:
-        results = [pool.apply_async(jellyfish_countregion, reads = samfile.fetch(region=r), ref = ref, vcf = vcf, ksize = jellyfish.MerDNA.k()) for r in conf_regions]
+        results = [pool.apply_async(jellyfish_countregion, reads = samfile.fetch(region=r), ref = refdict, vcf = vcf, ksize = jellyfish.MerDNA.k()) for r in conf_regions]
         pool.close()
         pool.join()
         alltables = [r.get() for r in results]
