@@ -189,7 +189,7 @@ def main():
     vcf = load_vcf(vcffilename, conf_regions)
 
 
-    print(tstamp(), file=sys.stderr)
+    print(tstamp(), "Counting . . .", file=sys.stderr)
     # alltable, errortable = jellyfish_count(samfile, refdict, vcf, conf_regions, alltable, errortable,jellyfish.MerDNA.k())
 
     #try threaded
@@ -198,6 +198,7 @@ def main():
         progress = 1
         for r in results:
             print(tstamp(), "Job {} of {}".format(progress, len(results)), file=sys.stderr)
+            progress += 1
             totalmers, errormers = r.get()
             for mer in totalmers:
                 m = jellyfish.MerDNA(mer)
