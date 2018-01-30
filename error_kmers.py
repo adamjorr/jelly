@@ -193,7 +193,7 @@ def main():
     # alltable, errortable = jellyfish_count(samfile, refdict, vcf, conf_regions, alltable, errortable,jellyfish.MerDNA.k())
 
     #try threaded
-    with Pool(processes=16) as pool:
+    with Pool(processes=32) as pool:
         results = [pool.apply_async(jellyfish_countregion, [get_readinfo(samfile, r),refdict,vcf,jellyfish.MerDNA.k()]) for r in conf_regions]
         progress = 1
         for r in results:
@@ -220,10 +220,10 @@ def main():
     print(errorabund[0:10])
 
     plt.xlim(0,1000)
-    totalplot = sns.distplot(totalabund, bins = 100, kde=True, hist_kws={range = (0,1000)}, color = "g")
+    totalplot = sns.distplot(totalabund, bins = 100, kde=True, hist_kws={'range' : (0,1000)}, color = "g")
     totalplot.get_figure().savefig('totalabund.png')
 
-    errorplot = sns.distplot(errorabund, bins = 100, kde=True, hist_kws={range = (0,1000)}, color = "r")
+    errorplot = sns.distplot(errorabund, bins = 100, kde=True, hist_kws={'range' : (0,1000)}, color = "r")
     errorplot.get_figure().savefig('errorabund.png')
 
 
