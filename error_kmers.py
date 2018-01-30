@@ -98,8 +98,10 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
-                totalabund.append(totaltable.get(mer))
-                errorabund.append(errortable.get(mer))
+                tabund = (totaltable.get(mer) if totaltable.get(mer) is not None else 0)
+                eabund = (errortable.get(mer) if errortable.get(mer) is not None else 0)
+                totalabund.append(tabund)
+                errorabund.append(eabund)
     return totalabund, errorabund
 
 def newinfo(*kwargs):
@@ -124,7 +126,7 @@ def main():
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.renamed.fa'
-    bedfilename = fileprefix + 'chr1_first3.bed.gz'
+    bedfilename = fileprefix + 'chr1_first100.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
@@ -152,12 +154,13 @@ def main():
     totalabund, errorabund = jellyfish_abundances(samfile, conf_regions, alltable, errortable)
 
     print(totalabund[0:10])
+    print(errorabund[0:10])
 
-    totalplot = sns.distplot(totalabund, kde=True, color = "m")
+    totalplot = sns.distplot(totalabund, kde=True, color = "g")
     totalplot.get_figure().savefig('totalabund.png')
 
     errorplot = sns.distplot(errorabund, kde=True, color = "r")
-    errorplot.get_figure().savefig('errorabund.png')    
+    errorplot.get_figure().savefig('errorabund.png')
 
 
 if __name__ == '__main__':
