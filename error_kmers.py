@@ -193,7 +193,7 @@ def main():
     # alltable, errortable = jellyfish_count(samfile, refdict, vcf, conf_regions, alltable, errortable,jellyfish.MerDNA.k())
 
     #try threaded
-    with Pool(processes=32) as pool:
+    with Pool(processes=8) as pool:
         results = [pool.apply_async(jellyfish_countregion, [get_readinfo(samfile, r),refdict,vcf,jellyfish.MerDNA.k()]) for r in conf_regions]
         progress = 1
         for r in results:
