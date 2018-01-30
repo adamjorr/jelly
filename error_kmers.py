@@ -84,11 +84,9 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
             if not errorpositions:
                 continue
             else:
-                kmerdict = split_into_kmers(read.query_sequence, ksize)
-                errorkmers = [k for k,v in kmerdict.items() if any([p in v for p in errorpositions])]
+                mranges = mer_ranges(allmers, ksize)
+                errorkmers = [k for i,k in enumerate(allmers) if any([p in mranges[i] for p in errorpositions])]
                 for k in errorkmers:
-                    mer = jellyfish.MerDNA(k)
-                    mer.canonicalize()
                     errortable.add(mer,1)
     return alltable, errortable
 
@@ -101,6 +99,9 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
                 totalabund.append(totaltable.get(mer))
                 errorabund.append(errortable.get(mer))
     return totalabund, errorabund
+
+def mer_ranges(mers,ksize):
+    return [range(k,k+ksize) for k in range(len(mers))]
 
 def newinfo(*kwargs):
     return
@@ -124,7 +125,7 @@ def main():
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.renamed.fa'
-    bedfilename = fileprefix + 'chr1_first3.bed.gz'
+    bedfilename = fileprefix + 'chr1_first100.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
