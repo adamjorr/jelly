@@ -214,16 +214,16 @@ def main():
     # map(errortable.add, errormers, repeat(1))
 
     print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
-    totalabund, errorabund = jellyfish_abundances(samfile, conf_regions, totaltable, errortable)
+    totalabund, errorabund = jellyfish_abundances(samfile, conf_regions, alltable, errortable)
 
     print(totalabund[0:10])
     print(errorabund[0:10])
 
     plt.xlim(0,1000)
-    totalplot = sns.distplot(totalabund, kde=True, color = "g")
+    totalplot = sns.distplot(totalabund, bins = 100, kde=True, hist_kws={range = (0,1000)}, color = "g")
     totalplot.get_figure().savefig('totalabund.png')
 
-    errorplot = sns.distplot(errorabund, kde=True, color = "r")
+    errorplot = sns.distplot(errorabund, bins = 100, kde=True, hist_kws={range = (0,1000)}, color = "r")
     errorplot.get_figure().savefig('errorabund.png')
 
 
