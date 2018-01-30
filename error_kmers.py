@@ -93,18 +93,20 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
                     errortable.add(mer,1)
     return alltable, errortable
 
-def jellyfish_countregion(reads, ref, vcf, ksize):
+def jellyfish_countregion(readinfo, ref, vcf, ksize):
     totaltable = initialize_hash()
     errortable = initialize_hash()
-    for read in reads:
-        allmers = jellyfish.string_canonicals(read.query_sequence)
+    for read in readinfo:
+        query_sequence = read[0]
+        reference_name = read[1]
+        reference_positions = read[2]
+
+        allmers = jellyfish.string_canonicals(query_sequence)
         lmers = [mer for mer in allmers]
         for mer in lmers:
             totaltable.add(mer,1)
-        refchr = read.reference_name
-        refpositions = read.get_reference_positions(full_length = True)
-        refpositions = [p for p in refpositions if p not in vcf[refchr]]
-        errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref,refchr,pos)]
+        refpositions = [p for p in reference_positions if p not in vcf[reference_name]]
+        errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or query_sequence[i] != get_ref_base(ref,reference_name,pos)]
         if not errorpositions:
             continue
         else:
@@ -150,6 +152,9 @@ def getcount(table, mer):
 def getcount_manytables(tables, mer):
     values = map(getcount, tables, repeat(mer))
     return sum(values)
+
+def get_readinfo(samfile, region):
+    return [(r.query_sequence, r.reference_name, r.get_reference_positions(full_length=True)) for r in samfile.fetch(region = region)]
 
 def main():
     # args = argparse() #TODO
@@ -197,7 +202,7 @@ def main():
 
     #try threaded
     with Pool(processes=16) as pool:
-        results = [pool.apply_async(jellyfish_countregion, [samfile.fetch(region=r),refdict,vcf,jellyfish.MerDNA.k()]) for r in conf_regions]
+        results = [pool.apply_async(jellyfish_countregion, [get_readinfo(samfile, r),refdict,vcf,jellyfish.MerDNA.k()]) for r in conf_regions]
         pool.close()
         pool.join()
         alltables = [r.get() for r in results]
