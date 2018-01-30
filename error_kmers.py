@@ -84,11 +84,9 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
             if not errorpositions:
                 continue
             else:
-                kmerdict = split_into_kmers(read.query_sequence, ksize)
-                errorkmers = [k for k,v in kmerdict.items() if any([p in v for p in errorpositions])]
+                mranges = mer_ranges(allmers, ksize)
+                errorkmers = [k for i,k in enumerate(allmers) if any([p in mranges[i] for p in errorpositions])]
                 for k in errorkmers:
-                    mer = jellyfish.MerDNA(k)
-                    mer.canonicalize()
                     errortable.add(mer,1)
     return alltable, errortable
 
@@ -103,6 +101,9 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
                 totalabund.append(tabund)
                 errorabund.append(eabund)
     return totalabund, errorabund
+
+def mer_ranges(mers,ksize):
+    return [range(k,k+ksize) for k in range(len(mers))]
 
 def newinfo(*kwargs):
     return
