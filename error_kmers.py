@@ -94,8 +94,6 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
     return alltable, errortable
 
 def jellyfish_countregion(readinfo, ref, vcf, ksize):
-    totaltable = initialize_hash()
-    errortable = initialize_hash()
     for read in readinfo:
         query_sequence = read[0]
         reference_name = read[1]
@@ -103,8 +101,6 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
 
         allmers = jellyfish.string_canonicals(query_sequence)
         lmers = [mer for mer in allmers]
-        for mer in lmers:
-            totaltable.add(mer,1)
         refpositions = [p for p in reference_positions if p not in vcf[reference_name]]
         errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or query_sequence[i] != get_ref_base(ref,reference_name,pos)]
         if not errorpositions:
@@ -112,28 +108,21 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
         else:
             mranges = mer_ranges(lmers, ksize)
             errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
-            for k in errorkmers:
-                errortable.add(mer,1)
-    return (totaltable, errortable)
+    return (lmers, errorkmers)
+
+# def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
+#     totalabund, errorabund = [], []
+#     for regionstr in conf_regions:
+#         for read in samfile.fetch(region=regionstr):
+#             allmers = jellyfish.string_canonicals(read.query_sequence)
+#             for mer in allmers:
+#                 totalabund.append(getcount(totaltable, mer))
+#                 errorabund.append(getcount(errortable, mer))
+#     return totalabund, errorabund
 
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
-    totalabund, errorabund = [], []
-    for regionstr in conf_regions:
-        for read in samfile.fetch(region=regionstr):
-            allmers = jellyfish.string_canonicals(read.query_sequence)
-            for mer in allmers:
-                totalabund.append(getcount(totaltable, mer))
-                errorabund.append(getcount(errortable, mer))
-    return totalabund, errorabund
-
-def jellyfish_threaded_abundances(samfile, conf_regions, totaltables, errortables):
-    totalabund, errorabund = [], []
-    for regionstr in conf_regions:
-        for read in samfile.fetch(region = regionstr):
-            allmers = jellyfish.string_canonicals(read.query_sequence)
-            for mer in allmers:
-                totalabund.append(getcount_manytables(totaltables, mer))
-                errorabund.append(getcount_manytables(errortables, mer))
+    totalabund = [getcount(totaltable, mer) for regionstr in conf_regions for read in samfile.fetch(region = regionstr) for mer in jellyfish.string_canonicals(read.query_sequence)]
+    errorabund = [getcount(errortable, mer) for regionstr in conf_regions for read in samfile.fetch(region = regionstr) for mer in jellyfish.string_canonicals(read.query_sequence)]
     return totalabund, errorabund
 
 def mer_ranges(mers,ksize):
@@ -203,13 +192,17 @@ def main():
     #try threaded
     with Pool(processes=16) as pool:
         results = [pool.apply_async(jellyfish_countregion, [get_readinfo(samfile, r),refdict,vcf,jellyfish.MerDNA.k()]) for r in conf_regions]
-        pool.close()
-        pool.join()
-        alltables = [r.get() for r in results]
-    totaltables, errortables = zip(*alltables) 
+        for r in results:
+            totalmers, errormers = r.get()
+            map(alltable.add, totalmers, repeat(1))
+            map(errortable.add, errormers, repeat(1))    
+        bothmers = [r.get() for r in results]
+    # totalmers, errormers = zip(*bothmers)
+    # map(alltable.add, totalmers, repeat(1))
+    # map(errortable.add, errormers, repeat(1))
 
     print('[',datetime.datetime.today().isoformat(' ', 'seconds'), ']', "Calculating Abundances . . .", file=sys.stderr)
-    totalabund, errorabund = jellyfish_threaded_abundances(samfile, conf_regions, totaltables, errortables)
+    totalabund, errorabund = jellyfish_abundances(samfile, conf_regions, totaltable, errortable)
 
     print(totalabund[0:10])
     print(errorabund[0:10])
