@@ -75,7 +75,8 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
-            for mer in allmers:
+            lmers = [mer for mer in allmers] #turn iterator into list
+            for mer in lmers:
                 alltable.add(mer,1)
             refchr = read.reference_name
             refpositions = read.get_reference_positions(full_length = True)
@@ -84,8 +85,8 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
             if not errorpositions:
                 continue
             else:
-                mranges = mer_ranges(allmers, ksize)
-                errorkmers = [k for i,k in enumerate(allmers) if any([p in mranges[i] for p in errorpositions])]
+                mranges = mer_ranges(lmers, ksize)
+                errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
                 for k in errorkmers:
                     errortable.add(mer,1)
     return alltable, errortable
@@ -157,6 +158,7 @@ def main():
     print(totalabund[0:10])
     print(errorabund[0:10])
 
+    plt.xlim(0,1000)
     totalplot = sns.distplot(totalabund, kde=True, color = "g")
     totalplot.get_figure().savefig('totalabund.png')
 
