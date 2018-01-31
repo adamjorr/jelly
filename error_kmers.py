@@ -121,7 +121,9 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
             for mer in allmers:
                 errorcount = getcount(errortable, mer)
                 totalcount = getcount(totaltable, mer)
-                assert errorcount < totalcount
+                assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
+                errorabund.append(errorcount)
+                totalabund.append(totalcount)
     return totalabund, errorabund
 
 # def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
