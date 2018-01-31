@@ -122,6 +122,7 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
                 errorcount = getcount(errortable, mer)
                 totalcount = getcount(totaltable, mer)
                 assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
+                assert totalcount > 0, "Mer {} has totalcount <= 0".format(mer)
                 errorabund.append(errorcount)
                 totalabund.append(totalcount)
     return totalabund, errorabund
@@ -243,7 +244,7 @@ def main():
 
     probabilityplot = plt.figure()
     pax = probabilityplot.add_axes()
-    sns.barplot(range(len(perror+1)),perror, ax=pax)
+    sns.barplot(np.arange(len(perror+1)),perror, ax=pax)
     probabilityplot.savefig('probability.png')
 
 if __name__ == '__main__':
