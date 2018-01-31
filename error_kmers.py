@@ -94,6 +94,7 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
     return alltable, errortable
 
 def jellyfish_countregion(readinfo, ref, vcf, ksize):
+    kmers, errorkmers = [], []
     for read in readinfo:
         query_sequence = read[0]
         reference_name = read[1]
@@ -101,14 +102,16 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
 
         allmers = jellyfish.string_canonicals(query_sequence)
         lmers = [str(mer) for mer in allmers]
+        kmers.extend(lmers)
         refpositions = [p for p in reference_positions if p not in vcf[reference_name]]
         errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or query_sequence[i] != get_ref_base(ref,reference_name,pos)]
         if not errorpositions:
             continue
         else:
             mranges = mer_ranges(lmers, ksize)
-            errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
-    return (lmers, errorkmers)
+            errormers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
+            errorkmers.extend(errormers)
+    return (kmers, errorkmers)
 
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
@@ -193,7 +196,7 @@ def main():
     # alltable, errortable = jellyfish_count(samfile, refdict, vcf, conf_regions, alltable, errortable,jellyfish.MerDNA.k())
 
     #try threaded
-    with Pool(processes=8) as pool:
+    with Pool(processes=16) as pool:
         results = [pool.apply_async(jellyfish_countregion, [get_readinfo(samfile, r),refdict,vcf,jellyfish.MerDNA.k()]) for r in conf_regions]
         progress = 1
         for r in results:
