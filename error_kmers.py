@@ -119,8 +119,9 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
-                totalabund.append(getcount(totaltable, mer))
-                errorabund.append(getcount(errortable, mer))
+                errorcount = getcount(errortable, mer)
+                totalcount = getcount(totaltable, mer)
+                assert errorcount < totalcount
     return totalabund, errorabund
 
 # def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
@@ -223,6 +224,9 @@ def main():
     totalcounts = np.bincount(totalabund)
     perror = errorcounts / totalcounts #element-wise division gets probability any kmer in a bin is an error
     #perror[1] = p(error) for abundance of 1
+    print(errorcounts)
+    print(totalcounts)
+    print(perror)
 
     print(tstamp(), "Making plots . . .", file=sys.stderr)
 
