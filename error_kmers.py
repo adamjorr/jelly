@@ -101,8 +101,11 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
         reference_positions = read[2]
 
         allmers = jellyfish.string_canonicals(query_sequence)
-        lmers = [str(mer) for mer in allmers]
-        kmers.extend(lmers)
+        lmers = []
+        for mer in allmers:
+            m = str(mer)
+            lmers.append(m)
+            kmers.append(m)
         refpositions = [p for p in reference_positions if p not in vcf[reference_name]]
         errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or query_sequence[i] != get_ref_base(ref,reference_name,pos)]
         if not errorpositions:
@@ -122,7 +125,7 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
                 errorcount = getcount(errortable, mer)
                 totalcount = getcount(totaltable, mer)
                 assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
-                assert totalcount > 0, "Mer {} has totalcount <= 0".format(mer)
+                assert totalcount > 0, "Mer {} has totalcount <= 0.".format(mer)
                 errorabund.append(errorcount)
                 totalabund.append(totalcount)
     return totalabund, errorabund
