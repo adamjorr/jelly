@@ -94,6 +94,7 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
     return alltable, errortable
 
 def jellyfish_countregion(readinfo, ref, vcf, ksize):
+    print("This worker has " + len(readinfo) + " reads!")
     kmers, errorkmers = [], []
     for read in readinfo:
         query_sequence = read[0]
@@ -120,7 +121,9 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
     counted = initialize_hash() #use this hash so we don't double count any kmers
     for regionstr in conf_regions:
-        for read in samfile.fetch(region=regionstr):
+        reads = samfile.fetch(regino=regionstr)
+        print("This region has " + len(reads) " reads!")
+        for read in reads:
             allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
                 if counted.get(mer) is None:
@@ -151,7 +154,7 @@ def newinfo(*kwargs):
 
 def getcount(table, mer):
     val = table.get(mer)
-    return val if val is not None else 0
+    return (val if val is not None else 0)
 
 def getcount_manytables(tables, mer):
     values = map(getcount, tables, repeat(mer))
@@ -217,11 +220,11 @@ def main():
             totalmers, errormers = r.get()
             for mer in totalmers:
                 m = jellyfish.MerDNA(mer)
-                m.canonicalize()
+                #m.canonicalize() the mer should already be in canonical form
                 alltable.add(m,1)
             for mer in errormers:
                 m = jellyfish.MerDNA(mer)
-                m.canonicalize()
+                # m.canonicalize()
                 errortable.add(m,1)
 
     # totalmers, errormers = zip(*bothmers)
