@@ -118,16 +118,21 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
 
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
+    counted = initialize_hash() #use this hash so we don't double count any kmers
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
-                errorcount = getcount(errortable, mer)
-                totalcount = getcount(totaltable, mer)
-                assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
-                assert totalcount > 0, "Mer {} has totalcount <= 0.".format(mer)
-                errorabund.append(errorcount)
-                totalabund.append(totalcount)
+                if counted.get(mer) is None:
+                    counted.add(mer,1)
+                    errorcount = getcount(errortable, mer)
+                    totalcount = getcount(totaltable, mer)
+                    assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
+                    assert totalcount > 0, "Mer {} has totalcount <= 0.".format(mer)
+                    errorabund.append(errorcount)
+                    totalabund.append(totalcount)
+                else:
+                    continue
     return totalabund, errorabund
 
 # def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
@@ -225,14 +230,19 @@ def main():
 
     print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
     totalabund, errorabund = jellyfish_abundances(samfile, conf_regions, alltable, errortable)
+    #each kmer has a position in these arrays; abund[kmer] = # occurrences
+    totalabund = np.array(totalabund)
+    errorabund = np.array(errorabund)
+    errorweight = errorabund / totalabund
 
-    errorcounts = np.bincount(errorabund)
+
     totalcounts = np.bincount(totalabund)
+    errorcounts = np.bincount(errorabund, weights = errorweight)
     perror = errorcounts / totalcounts #element-wise division gets probability any kmer in a bin is an error
     #perror[1] = p(error) for abundance of 1
-    print(errorcounts)
-    print(totalcounts)
-    print(perror)
+    # print(errorcounts)
+    # print(totalcounts)
+    # print(perror)
 
     print(tstamp(), "Making plots . . .", file=sys.stderr)
 
