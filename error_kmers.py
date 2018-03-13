@@ -214,24 +214,24 @@ def main():
     errorcounts = np.bincount(errorabund, weights = errorweight)
     perror = errorcounts / totalcounts #element-wise division gets probability any kmer in a bin is an error
     #perror[1] = p(error) for abundance of 1
-    # print(errorcounts)
-    # print(totalcounts)
-    # print(perror)
+    print(errorcounts)
+    print(totalcounts)
+    print(perror)
 
     print(tstamp(), "Making plots . . .", file=sys.stderr)
 
+    sns.set()
     plt.xlim(0,100)
     totalfig = plt.figure()
-    totalax = totalfig.add_subplot(211)
-    sns.distplot(totalabund, ax=totalax, bins = 100, kde=False, hist_kws={'range' : (0,100)}, color = "g")
+    # totalax = totalfig.add_subplot(211)
+    sns.barplot(np.arange(1,len(totalcounts)+1),totalcounts, color = "g")
 
-    errorax = totalfig.add_subplot(212)
-    sns.distplot(errorabund, bins = 100, kde=False, hist_kws={'range' : (0,100)}, color = "r", ax = errorax)
+    # errorax = totalfig.add_subplot(212)
+    sns.distplot(np.arange(1,len(errorcounts)+1),errorabund, color = "r")
     totalfig.savefig('distributions.png')
 
     probabilityplot = plt.figure()
-    pax = probabilityplot.add_axes()
-    sns.barplot(np.arange(len(perror+1)),perror, ax=pax)
+    sns.barplot(np.arange(len(perror+1)),perror)
     probabilityplot.savefig('probability.png')
 
 if __name__ == '__main__':
