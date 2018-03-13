@@ -124,7 +124,10 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
+            lmers = []
             for mer in allmers:
+                lmers.append(mer)
+            for mer in lmers:
                 if counted.get(mer) is None:
                     counted.add(mer,1)
                     errorcount = getcount(errortable, mer)
