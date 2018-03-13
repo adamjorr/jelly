@@ -208,11 +208,13 @@ def main():
     totalabund = np.array(totalabund)
     errorabund = np.array(errorabund)
     errorweight = errorabund / totalabund
-
+    print(errorabund)
 
     totalcounts = np.bincount(totalabund)
     errorcounts = np.bincount(errorabund, weights = errorweight)
-    perror = errorcounts / totalcounts #element-wise division gets probability any kmer in a bin is an error
+    divisorcounts = numpy.array(totalcounts)
+    divisorcounts[0] = 1
+    perror = errorcounts / divisorcounts #element-wise division gets probability any kmer in a bin is an error
     #perror[1] = p(error) for abundance of 1
     print(errorcounts)
     print(totalcounts)
@@ -227,7 +229,7 @@ def main():
     sns.barplot(np.arange(1,len(totalcounts)+1),totalcounts, color = "g")
 
     # errorax = totalfig.add_subplot(212)
-    sns.distplot(np.arange(1,len(errorcounts)+1),errorabund, color = "r")
+    sns.barplot(np.arange(1,len(errorcounts)+1),errorabund, color = "r")
     totalfig.savefig('distributions.png')
 
     probabilityplot = plt.figure()
