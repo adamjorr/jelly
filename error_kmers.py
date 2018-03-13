@@ -121,22 +121,11 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
     counted = initialize_hash() #use this hash so we don't double count any kmers
-    counter = 0
     for regionstr in conf_regions:
-        for read in get_readinfo(samfile, regionstr):
-            allmers = jellyfish.string_mers(read[0])
-            lmers = []
+        for read in samfile.fetch(region=regionstr):
+            allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
-                m = str(mer)
-                lmers.append(m)
-            print("Processing",len(lmers),"kmers.")
-            for mer in lmers:
-                m = jellyfish.MerDNA(mer)
-                m.canonicalize()
-                if str(m) == "CCCCCTCTCCCCGCTACACTCCCCCACCCC":
-                    print("I am about to crash")
-                counter = counter + 1
-                if counted.get(m) is None:
+                if counted.get(mer) is None:
                     counted.add(m,1)
                     errorcount = getcount(errortable, m)
                     totalcount = getcount(totaltable, m)
