@@ -60,7 +60,7 @@ def count_mers(samfile, ref, vcf, conf_regions, alltable, errortable):
                 mranges = mer_ranges(mers, errortable.ksize())
                 errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
                 for k in errorkmers:
-                    errortable.add(k)
+                    errortable.count(k)
     return alltable, errortable
 
 def get_abundances(samfile, conf_regions, totaltable, errortable, trackingtable):
@@ -70,7 +70,7 @@ def get_abundances(samfile, conf_regions, totaltable, errortable, trackingtable)
             kmers = totaltable.get_kmers(read.query_sequence)
             for mer in kmers:
                 if not trackingtable.get(mer):
-                    trackingtable.add(mer)
+                    trackingtable.count(mer)
                     errorcount = errortable.get(mer)
                     totalcount = totaltable.get(mer)
                     assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
@@ -229,7 +229,7 @@ def main():
     sns.barplot(np.arange(1,len(totalcounts)+1),totalcounts, color = "g")
 
     # errorax = totalfig.add_subplot(212)
-    sns.barplot(np.arange(1,len(errorcounts)+1),errorabund, color = "r")
+    sns.barplot(np.arange(1,len(errorcounts)+1),errorcounts, color = "r")
     totalfig.savefig('distributions.png')
 
     probabilityplot = plt.figure()
