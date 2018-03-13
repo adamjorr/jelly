@@ -126,11 +126,11 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
             allmers = jellyfish.string_canonicals(read.query_sequence)
             for mer in allmers:
                 if counted.get(mer) is None:
-                    counted.add(m,1)
-                    errorcount = getcount(errortable, m)
-                    totalcount = getcount(totaltable, m)
-                    assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(m, errorcount, totalcount)
-                    assert totalcount > 0, "Mer {} has totalcount <= 0; processed {} kmers.".format(m,counter)
+                    counted.add(mer,1)
+                    errorcount = getcount(errortable, mer)
+                    totalcount = getcount(totaltable, mer)
+                    assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
+                    assert totalcount > 0, "Mer {} has totalcount <= 0; processed {} kmers.".format(mer,counter)
                     errorabund.append(errorcount)
                     totalabund.append(totalcount)
                 else:
