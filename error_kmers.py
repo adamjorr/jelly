@@ -212,7 +212,7 @@ def main():
 
     totalcounts = np.bincount(totalabund)
     errorcounts = np.bincount(errorabund, weights = errorweight)
-    divisorcounts = numpy.array(totalcounts)
+    divisorcounts = np.array(totalcounts)
     divisorcounts[0] = 1
     perror = errorcounts / divisorcounts #element-wise division gets probability any kmer in a bin is an error
     #perror[1] = p(error) for abundance of 1
