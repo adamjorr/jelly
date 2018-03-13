@@ -88,7 +88,7 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
                 if str(m) == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
                     print("Found it 2.")
                 alltable.add(m,1)
-                if mer == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
+                if str(m) == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
                     print("Found it 3.")
             refchr = read.reference_name
             refpositions = read.get_reference_positions(full_length = True)
@@ -139,10 +139,18 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
             for mer in allmers:
                 lmers.append(str(mer))
             for mer in lmers:
+                if mer == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
+                    print("Found it 4.")
                 m = jellyfish.MerDNA(mer)
                 m.canonicalize()
+                if str(m) == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
+                    print("Found it 5.")
                 if counted.get(m) is None:
+                    if str(m) == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
+                        print("Found it 6.")
                     counted.add(m,1)
+                    if str(m) == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
+                        print("Found it 7.")
                     errorcount = getcount(errortable, m)
                     totalcount = getcount(totaltable, m)
                     assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(m, errorcount, totalcount)
