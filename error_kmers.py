@@ -136,8 +136,8 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
                 m = jellyfish.MerDNA(mer)
                 m.canonicalize()
                 if counted.get(m) is None:
-                    print(str(m))
-                    print(str(m))
+                    print(m)
+                    print(m)
                     print("Are these two the same? They should be!")
                     exit()
                     counted.add(m,1)
