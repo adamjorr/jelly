@@ -81,9 +81,15 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
             for mer in allmers:
                 lmers.append(str(mer))
             for mer in lmers:
+                if mer == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
+                    print("Found it.")
                 m = jellyfish.MerDNA(mer)
                 m.canonicalize()
+                if str(m) == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
+                    print("Found it 2.")
                 alltable.add(m,1)
+                if mer == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
+                    print("Found it 3.")
             refchr = read.reference_name
             refpositions = read.get_reference_positions(full_length = True)
             refpositions = [p for p in refpositions if p not in vcf[refchr]] #ignore sites in VCF
