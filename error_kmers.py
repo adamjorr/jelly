@@ -58,7 +58,7 @@ def count_mers(samfile, ref, vcf, conf_regions, alltable, errortable):
             else:
                 mers = errortable.get_kmers(read.query_sequence)
                 mranges = mer_ranges(mers, errortable.ksize())
-                errorkmers = [k for i,k in enumerate(mers) if any([p in mrange[i] for p in errorpositions])]
+                errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
                 for k in errorkmers:
                     errortable.add(k)
     return alltable, errortable
