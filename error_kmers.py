@@ -91,7 +91,7 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
                 mranges = mer_ranges(lmers, ksize)
                 errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
                 for k in errorkmers:
-                    errortable.add(mer,1)
+                    errortable.add(k,1)
     return alltable, errortable
 
 # def jellyfish_countregion(readinfo, ref, vcf, ksize):
