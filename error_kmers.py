@@ -94,19 +94,22 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
     return alltable, errortable
 
 def jellyfish_countregion(readinfo, ref, vcf, ksize):
-    print("This worker has " + len(readinfo) + " reads!")
     kmers, errorkmers = [], []
     for read in readinfo:
         query_sequence = read[0]
         reference_name = read[1]
         reference_positions = read[2]
 
-        allmers = jellyfish.string_canonicals(query_sequence)
+        allmers = jellyfish.string_mers(query_sequence)
         lmers = []
         for mer in allmers:
             m = str(mer)
             lmers.append(m)
-            kmers.append(m)
+            c =  jellyfish.MerDNA(m)
+            c.canonicalize()
+            if str(c) == "CCCCCTCTCCCCGCTACACTCCCCCACCCC":
+                print("found it")
+        kmers.extend(lmers)
         refpositions = [p for p in reference_positions if p not in vcf[reference_name]]
         errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or query_sequence[i] != get_ref_base(ref,reference_name,pos)]
         if not errorpositions:
@@ -115,23 +118,33 @@ def jellyfish_countregion(readinfo, ref, vcf, ksize):
             mranges = mer_ranges(lmers, ksize)
             errormers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
             errorkmers.extend(errormers)
+    print("This worker has",len(readinfo),"reads and",len(kmers),"kmers!")
     return (kmers, errorkmers)
 
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
     counted = initialize_hash() #use this hash so we don't double count any kmers
+    counter = 0
     for regionstr in conf_regions:
-        reads = samfile.fetch(regino=regionstr)
-        print("This region has " + len(reads) " reads!")
-        for read in reads:
-            allmers = jellyfish.string_canonicals(read.query_sequence)
+        for read in get_readinfo(samfile, regionstr):
+            allmers = jellyfish.string_mers(read[0])
+            lmers = []
             for mer in allmers:
-                if counted.get(mer) is None:
-                    counted.add(mer,1)
-                    errorcount = getcount(errortable, mer)
-                    totalcount = getcount(totaltable, mer)
-                    assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
-                    assert totalcount > 0, "Mer {} has totalcount <= 0.".format(mer)
+                m = str(mer)
+                lmers.append(m)
+            print("Processing",len(lmers),"kmers.")
+            for mer in lmers:
+                m = jellyfish.MerDNA(mer)
+                m.canonicalize()
+                if str(m) == "CCCCCTCTCCCCGCTACACTCCCCCACCCC":
+                    print("I am about to crash")
+                counter = counter + 1
+                if counted.get(m) is None:
+                    counted.add(m,1)
+                    errorcount = getcount(errortable, m)
+                    totalcount = getcount(totaltable, m)
+                    assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(m, errorcount, totalcount)
+                    assert totalcount > 0, "Mer {} has totalcount <= 0; processed {} kmers.".format(m,counter)
                     errorabund.append(errorcount)
                     totalabund.append(totalcount)
                 else:
@@ -153,15 +166,19 @@ def newinfo(*kwargs):
     return
 
 def getcount(table, mer):
-    val = table.get(mer)
-    return (val if val is not None else 0)
+    val = table.get(mer) 
+    v = (val if val is not None else 0)
+    return v
 
 def getcount_manytables(tables, mer):
     values = map(getcount, tables, repeat(mer))
     return sum(values)
 
 def get_readinfo(samfile, region):
-    return [(r.query_sequence, r.reference_name, r.get_reference_positions(full_length=True)) for r in samfile.fetch(region = region)]
+    r = []
+    for read in samfile.fetch(region=region, multiple_iterators=True):
+        r.append((read.query_sequence, read.reference_name, read.get_reference_positions(full_length=True)))
+    return r
 
 def tstamp():
     return '[ ' + datetime.datetime.today().isoformat(' ', 'seconds') + ' ]'
@@ -212,7 +229,8 @@ def main():
 
     #try threaded
     with Pool(processes=16) as pool:
-        results = [pool.apply_async(jellyfish_countregion, [get_readinfo(samfile, r),refdict,vcf,jellyfish.MerDNA.k()]) for r in conf_regions]
+        readinfo = [get_readinfo(samfile,r) for r in conf_regions]
+        results = [pool.apply_async(jellyfish_countregion, [readinfo[i],refdict,vcf,jellyfish.MerDNA.k()]) for i in range(len(conf_regions))]
         progress = 1
         for r in results:
             print(tstamp(), "Job {} of {}".format(progress, len(results)), file=sys.stderr)
@@ -220,11 +238,11 @@ def main():
             totalmers, errormers = r.get()
             for mer in totalmers:
                 m = jellyfish.MerDNA(mer)
-                #m.canonicalize() the mer should already be in canonical form
+                m.canonicalize()
                 alltable.add(m,1)
             for mer in errormers:
                 m = jellyfish.MerDNA(mer)
-                # m.canonicalize()
+                m.canonicalize()
                 errortable.add(m,1)
 
     # totalmers, errormers = zip(*bothmers)
