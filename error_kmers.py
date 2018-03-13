@@ -139,12 +139,13 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
             for mer in allmers:
                 lmers.append(str(mer))
             for mer in lmers:
-                if mer == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
-                    print("Found it 4.")
+                print(mer)
                 m = jellyfish.MerDNA(mer)
                 m.canonicalize()
-                if str(m) == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
-                    print("Found it 5.")
+                print(str(m))
+                print(str(m))
+                print(str(m))
+                quit()
                 if counted.get(m) is None:
                     if str(m) == "CCCCCGCTACATTTCCCCACCTCTGGTAAC":
                         print("Found it 6.")
