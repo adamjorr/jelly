@@ -79,8 +79,11 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
             allmers = jellyfish.string_canonicals(read.query_sequence)
             lmers = []
             for mer in allmers:
-                alltable.add(mer,1)
-                lmers.append(mer)
+                lmers.append(str(mer))
+            for mer in lmers:
+                m = jellyfish.MerDNA(mer)
+                m.canonicalize()
+                alltable.add(m,1)
             refchr = read.reference_name
             refpositions = read.get_reference_positions(full_length = True)
             refpositions = [p for p in refpositions if p not in vcf[refchr]] #ignore sites in VCF
@@ -91,7 +94,9 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
                 mranges = mer_ranges(lmers, ksize)
                 errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
                 for k in errorkmers:
-                    errortable.add(k,1)
+                    m = jellyfish.MerDNA(k)
+                    m.canonicalize()
+                    errortable.add(m,1)
     return alltable, errortable
 
 # def jellyfish_countregion(readinfo, ref, vcf, ksize):
@@ -126,9 +131,15 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
             allmers = jellyfish.string_canonicals(read.query_sequence)
             lmers = []
             for mer in allmers:
-                lmers.append(mer)
+                lmers.append(str(mer))
             for mer in lmers:
+                m = jellyfish.MerDNA(mer)
+                m.canonicalize()
                 if counted.get(mer) is None:
+                    print(str(mer))
+                    print(str(mer))
+                    print("Are these two the same? They should be!")
+                    exit()
                     counted.add(mer,1)
                     errorcount = getcount(errortable, mer)
                     totalcount = getcount(totaltable, mer)
