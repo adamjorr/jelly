@@ -135,16 +135,16 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
             for mer in lmers:
                 m = jellyfish.MerDNA(mer)
                 m.canonicalize()
-                if counted.get(mer) is None:
-                    print(str(mer))
-                    print(str(mer))
+                if counted.get(m) is None:
+                    print(str(m))
+                    print(str(m))
                     print("Are these two the same? They should be!")
                     exit()
-                    counted.add(mer,1)
-                    errorcount = getcount(errortable, mer)
-                    totalcount = getcount(totaltable, mer)
-                    assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
-                    assert totalcount > 0, "Mer {} has totalcount <= 0. ({})".format(mer, totalcount)
+                    counted.add(m,1)
+                    errorcount = getcount(errortable, m)
+                    totalcount = getcount(totaltable, m)
+                    assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(m, errorcount, totalcount)
+                    assert totalcount > 0, "Mer {} has totalcount <= 0. ({})".format(m, totalcount)
                     errorabund.append(errorcount)
                     totalabund.append(totalcount)
                 else:
