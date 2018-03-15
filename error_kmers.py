@@ -181,7 +181,7 @@ def main():
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.renamed.fa'
-    bedfilename = fileprefix + 'chr1_first3.bed.gz'
+    bedfilename = fileprefix + 'chr1_confident.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
 
     #set up hashes
@@ -209,22 +209,14 @@ def main():
     errorabund = np.array(eabund)
     errorweight = np.true_divide(errorabund,totalabund)
     np.set_printoptions(edgeitems=100)
-    print("Errorabund:",errorabund)
-    print("Totalabund:",totalabund)
-    print("Errorweight:",errorweight)
 
     totalcounts = np.bincount(totalabund)
     errorcounts = np.bincount(errorabund, weights = errorweight)
-    print("Totalcounts shape",totalcounts.shape)
-    print("Errorcounts shape",errorcounts.shape)
     errorcounts = np.pad(errorcounts,(0,len(totalcounts)-len(errorcounts)),'constant')
     divisorcounts = np.array(totalcounts)
     divisorcounts[0] = 1
     perror = np.true_divide(errorcounts,divisorcounts) #element-wise division gets probability any kmer in a bin is an error
     #perror[1] = p(error) for abundance of 1
-    print("Errorcounts:",errorcounts)
-    print("Totalcounts:",totalcounts)
-    print("Perror:",perror)
 
     print(tstamp(), "Making plots . . .", file=sys.stderr)
 
@@ -232,14 +224,14 @@ def main():
     plt.xlim(0,100)
     totalfig = plt.figure()
     # totalax = totalfig.add_subplot(211)
-    sns.barplot(np.arange(1,len(totalcounts)+1),totalcounts, color = "g")
+    sns.distplot(totalabund, color = "g", hist_kws = {'alpha' : 0.75}, kde = False)
 
     # errorax = totalfig.add_subplot(212)
-    sns.barplot(np.arange(1,len(errorcounts)+1),errorcounts, color = "r")
+    sns.distplot(errorabund, hist_kws = {'weights' : errorweight, 'alpha' : 0.75}, color = "r", kde = False)
     totalfig.savefig('distributions.png')
 
     probabilityplot = plt.figure()
-    sns.barplot(np.arange(len(perror+1)),perror)
+    sns.regplot(np.arange(len(perror+1)),perror,fit_reg = False)
     probabilityplot.savefig('probability.png')
 
 if __name__ == '__main__':
