@@ -51,8 +51,8 @@ def count_mers(samfile, ref, vcf, conf_regions, alltable, errortable):
         for read in samfile.fetch(region=regionstr):
             alltable.consume(read.query_sequence)
             refchr = read.reference_name
-            refpositions = read.get_reference_positions(full_length=True) #these are 1-based positions
-            errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref, refchr, pos)]
+            refpositions = read.get_reference_positions(full_length=True) #these should be 1-based positions but are actually 0-based
+            errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or (read.query_sequence[i] != ref[refchr][pos] and pos+1 not in vcf[refchr])]
             if not errorpositions:
                 continue
             else:
@@ -203,22 +203,28 @@ def main():
     alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
 
     print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
-    totalabund, errorabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
+    tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
     #each kmer has a position in these arrays; abund[kmer] = # occurrences
-    totalabund = np.array(totalabund)
-    errorabund = np.array(errorabund)
-    errorweight = errorabund / totalabund
-    print(errorabund)
+    totalabund = np.array(tabund)
+    errorabund = np.array(eabund)
+    errorweight = np.true_divide(errorabund,totalabund)
+    np.set_printoptions(edgeitems=100)
+    print("Errorabund:",errorabund)
+    print("Totalabund:",totalabund)
+    print("Errorweight:",errorweight)
 
     totalcounts = np.bincount(totalabund)
     errorcounts = np.bincount(errorabund, weights = errorweight)
+    print("Totalcounts shape",totalcounts.shape)
+    print("Errorcounts shape",errorcounts.shape)
+    errorcounts = np.pad(errorcounts,(0,len(totalcounts)-len(errorcounts)),'constant')
     divisorcounts = np.array(totalcounts)
     divisorcounts[0] = 1
-    perror = errorcounts / divisorcounts #element-wise division gets probability any kmer in a bin is an error
+    perror = np.true_divide(errorcounts,divisorcounts) #element-wise division gets probability any kmer in a bin is an error
     #perror[1] = p(error) for abundance of 1
-    print(errorcounts)
-    print(totalcounts)
-    print(perror)
+    print("Errorcounts:",errorcounts)
+    print("Totalcounts:",totalcounts)
+    print("Perror:",perror)
 
     print(tstamp(), "Making plots . . .", file=sys.stderr)
 
