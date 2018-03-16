@@ -89,14 +89,10 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
             for mer in lmers:
                 m = jellyfish.MerDNA(mer)
                 m.canonicalize()
-                foo = str(m)
                 alltable.add(m,1)
-                bar = str(m)
-                assert foo == bar, "Mer has mutated! before: {}, after: {}.".format(foo,bar)
             refchr = read.reference_name
-            refpositions = read.get_reference_positions(full_length = True)
-            refpositions = [p for p in refpositions if p not in vcf[refchr]] #ignore sites in VCF
-            errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or read.query_sequence[i] != get_ref_base(ref, refchr, pos)]
+            refpositions = read.get_reference_positions(full_length = True) #these should be 1-based but are actually 0-based
+            errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or (read.query_sequence[i] != ref[refchr][pos] and pos+1 not in vcf[refchr])]
             if not errorpositions:
                 continue
             else:
@@ -110,7 +106,7 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
 
 def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     totalabund, errorabund = [], []
-    counted = initialize_hash() #use this hash so we don't double count any kmers
+    counted = initialize_jf_hash() #use this hash so we don't double count any kmers
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             allmers = jellyfish.string_canonicals(read.query_sequence)
@@ -120,13 +116,10 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
             for mer in lmers:
                 m = jellyfish.MerDNA(mer)
                 m.canonicalize()
-                foo = str(m)
                 if counted.get(m) is None:
                     counted.add(m,1)
                     errorcount = getcount(errortable, m)
                     totalcount = getcount(totaltable, m)
-                    bar = str(m)
-                    assert foo == bar, "Mer has mutated! before: {}, after: {}.".format(foo,bar)
                     assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(m, errorcount, totalcount)
                     assert totalcount > 0, "Mer {} has totalcount <= 0. ({})".format(m, totalcount)
                     errorabund.append(errorcount)
@@ -138,7 +131,7 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
 def mer_ranges(mers,ksize):
     return [range(k,k+ksize) for k in range(len(mers))]
 
-def initialize_hash():
+def initialize_jf_hash():
     return jellyfish.HashCounter(1024,15)
 
 def newinfo(*kwargs):
@@ -162,6 +155,67 @@ def get_readinfo(samfile, region):
 def tstamp():
     return '[ ' + datetime.datetime.today().isoformat(' ', 'seconds') + ' ]'
 
+def init_jf_hashes():
+    print(tstamp(), "Preparing JF hashes . . .", file=sys.stderr)
+    jellyfish.MerDNA.k(30)
+    alltable = initialize_jf_hash()
+    errortable = initialize_jf_hash()
+    return alltable, errortable
+
+def init_hashes():
+    print(tstamp(), "Preparing hashes . . .", file=sys.stderr)
+    khmer.khmer_args.info = newinfo
+    args = khmer.khmer_args.build_counting_args().parse_args()
+    alltable = khmer.khmer_args.create_countgraph(args)
+    errortable = khmer.khmer_args.create_countgraph(args)
+    trackingtable = khmer.khmer_args.create_countgraph(args)
+    return alltable, errortable, trackingtable
+
+def load_files(samfilename, fafilename, bedfilename, vcffilename):
+    print(tstamp(), "Loading Files . . .", file=sys.stderr)
+    samfile = pysam.AlignmentFile(samfilename)
+    refdict = get_ref_dict(fafilename)
+    conf_regions = get_confident_regions(bedfilename)
+    vcf = load_vcf(vcffilename, conf_regions)
+    return samfile, refdict, conf_regions, vcf    
+
+def plot_dists(totalabund, errorabund, errorweight, filename):
+    print(tstamp(), "Making distribution plots . . .", file=sys.stderr)
+    sns.set()
+    plt.xlim(0,100)
+    totalfig = plt.figure()
+    # totalax = totalfig.add_subplot(211)
+    sns.distplot(totalabund, color = "g", hist_kws = {'alpha' : 0.6}, kde = False)
+
+    # errorax = totalfig.add_subplot(212)
+    sns.distplot(errorabund, hist_kws = {'weights' : errorweight, 'alpha' : 0.6}, color = "r", kde = False)
+    totalfig.savefig(filename)
+
+def plot_perror(perror, filename):
+    #TODO: plot a fit of the error model too
+    print(tstamp(), "Making abundance error probability plot . . .", file=sys.stderr)
+    sns.set()
+    plt.xlim(0,100)
+    probabilityplot = plt.figure()
+    plt.plot(np.arange(len(perror+1)),perror, '.-')
+    probabilityplot.savefig(filename)
+
+def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
+    tabund = np.array(totalabund)
+    eabund = np.array(errorabund)
+    errorweight = np.true_divide(eabund,tabund)
+    tcounts = np.bincount(totalabund)
+    ecounts = np.bincount(errorabund, weights = errorweight)
+    tcounts[0] = 1
+    perror = np.true_divide(errorcounts, divisorcounts)
+
+    if distplot is not None:
+        plot_dists(totalabund, errorabund, errorweight, distplot)
+    if errorplot is not None:
+        plot_perror(perror, errorplot)
+
+    return perror
+
 def main():
     # args = argparse() #TODO
     # print(get_kmers_covering("ATCGAA",3,4))
@@ -181,58 +235,32 @@ def main():
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.renamed.fa'
-    bedfilename = fileprefix + 'chr1_confident.bed.gz'
+    bedfilename = fileprefix + 'chr1_first100.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
-
-    #set up hashes
-    print(tstamp(), "Preparing hashes . . .", file=sys.stderr)
-    khmer.khmer_args.info = newinfo
-    args = khmer.khmer_args.build_counting_args().parse_args()
-    alltable = khmer.khmer_args.create_countgraph(args)
-    errortable = khmer.khmer_args.create_countgraph(args)
-    trackingtable = khmer.khmer_args.create_countgraph(args)
-
-    #do things
-    print(tstamp(), "Loading Files . . .", file=sys.stderr)
-    samfile = pysam.AlignmentFile(samfilename)
-    refdict = get_ref_dict(fafilename)
-    conf_regions = get_confident_regions(bedfilename)
-    vcf = load_vcf(vcffilename, conf_regions)
-
-    print(tstamp(), "Counting . . .", file=sys.stderr)
-    alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
-
-    print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
-    tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
-    #each kmer has a position in these arrays; abund[kmer] = # occurrences
-    totalabund = np.array(tabund)
-    errorabund = np.array(eabund)
-    errorweight = np.true_divide(errorabund,totalabund)
     np.set_printoptions(edgeitems=100)
 
-    totalcounts = np.bincount(totalabund)
-    errorcounts = np.bincount(errorabund, weights = errorweight)
-    errorcounts = np.pad(errorcounts,(0,len(totalcounts)-len(errorcounts)),'constant')
-    divisorcounts = np.array(totalcounts)
-    divisorcounts[0] = 1
-    perror = np.true_divide(errorcounts,divisorcounts) #element-wise division gets probability any kmer in a bin is an error
-    #perror[1] = p(error) for abundance of 1
+    #set up hashes and load files
+    alltable, errortable, trackingtable = init_hashes()
+    jfalltable, jferrortable = init_jf_hashes()
+    samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
 
-    print(tstamp(), "Making plots . . .", file=sys.stderr)
+    #count
+    print(tstamp(), "Counting . . .", file=sys.stderr)
+    alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
+    jfalltable, jferrortable = jellyfish_count(samfile, refdict, vcf, conf_regions, jfalltable, jferrortable, jellyfish.MerDNA.k())
 
-    sns.set()
-    plt.xlim(0,100)
-    totalfig = plt.figure()
-    # totalax = totalfig.add_subplot(211)
-    sns.distplot(totalabund, color = "g", hist_kws = {'alpha' : 0.75}, kde = False)
+    print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
+    #each kmer has a position in these arrays; abund[kmer idx] = # occurrences
+    tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
+    jf_tabund, jf_eabund = jellyfish_abundances(samfile, conf_regions, jfalltable, jferrortable)
 
-    # errorax = totalfig.add_subplot(212)
-    sns.distplot(errorabund, hist_kws = {'weights' : errorweight, 'alpha' : 0.75}, color = "r", kde = False)
-    totalfig.savefig('distributions.png')
+    print("Totals equal?",np.array_equal(jf_tabund, tabund))
+    print("Errors equal?",np.array_equal(jf_eabund, eabund))
 
-    probabilityplot = plt.figure()
-    sns.regplot(np.arange(len(perror+1)),perror,fit_reg = False)
-    probabilityplot.savefig('probability.png')
+    perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
+    #perror[1] = observed p(error) for abundance of 1
+
+    
 
 if __name__ == '__main__':
     main()
