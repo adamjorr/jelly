@@ -237,34 +237,19 @@ def main():
 
     #set up hashes and load files
     alltable, errortable, trackingtable = init_hashes()
-    jfalltable, jferrortable = init_jf_hashes()
     samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
 
     #count
     print(tstamp(), "Counting . . .", file=sys.stderr)
     alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
-    jfalltable, jferrortable = jellyfish_count(samfile, refdict, vcf, conf_regions, jfalltable, jferrortable, jellyfish.MerDNA.k())
 
     print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
     #each kmer has a position in these arrays; abund[kmer idx] = # occurrences
     tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
-    jf_tabund, jf_eabund = jellyfish_abundances(samfile, conf_regions, jfalltable, jferrortable)
 
-    totseq = np.array_equal(jf_tabund, tabund)
-    errseq = np.array_equal(jf_eabund, eabund)
-    print("Totals equal?", totseq)
-    #if not totseq:
-    #    print("JF:",jf_tabund)
-    #    print("Khmer:",tabund)
-    print("Errors equal?", errseq)
-    #if not errseq:
-    #    print("JF:",jf_eabund)
-    #    print("Khmer:",eabund)
-
-    perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
-    jf_perror = calc_perror(jf_tabund, jf_eabund)
-    print("Perror equal?",jf_perror)
     #perror[1] = observed p(error) for abundance of 1
+    perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
+
 
     
 
