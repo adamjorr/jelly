@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import datetime
-import jellyfish
+import dna_jellyfish as jellyfish
 from itertools import repeat
 from multiprocessing import Pool
 
@@ -82,10 +82,9 @@ def get_abundances(samfile, conf_regions, totaltable, errortable, trackingtable)
 def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize):
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
-            allmers = jellyfish.string_mers(read.query_sequence)
+            allmers = jellyfish.string_canonicals(read.query_sequence)
             lmers = []
             for mer in allmers:
-                mer.canonicalize()
                 lmers.append(mer)
             for mer in lmers:
                 alltable.add(mer,1)
@@ -106,10 +105,9 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     counted = initialize_jf_hash() #use this hash so we don't double count any kmers
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
-            allmers = jellyfish.string_mers(read.query_sequence)
+            allmers = jellyfish.string_canonicals(read.query_sequence)
             lmers = []
             for mer in allmers:
-                mer.canonicalize()
                 lmers.append(mer)
             for mer in lmers:
                 if counted.get(mer) is None:
@@ -202,8 +200,9 @@ def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
     errorweight = np.true_divide(eabund,tabund)
     tcounts = np.bincount(totalabund)
     ecounts = np.bincount(errorabund, weights = errorweight)
+    ecounts = np.pad(ecounts,(0,len(tcounts)-len(ecounts)),'constant')
     tcounts[0] = 1
-    perror = np.true_divide(errorcounts, divisorcounts)
+    perror = np.true_divide(ecounts, tcounts)
 
     if distplot is not None:
         plot_dists(totalabund, errorabund, errorweight, distplot)
@@ -216,6 +215,14 @@ def main():
     # args = argparse() #TODO
     # print(get_kmers_covering("ATCGAA",3,4))
     # print(get_confident_regions('/home/adam/variant-standards/CHM-eval/hg19/chr1/chr1_confident.bed.gz')[0:2])
+
+    #foo = "ATCGT"
+    #jellyfish.MerDNA.k(4)
+    #bar = jellyfish.HashCounter(1024,15)
+    #baz = jellyfish.string_mers(foo)
+    #for mer in baz:
+    #    print(str(mer))
+    #exit()
 
     #example
     # khmer.khmer_args.info = newinfo
@@ -231,7 +238,7 @@ def main():
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.renamed.fa'
-    bedfilename = fileprefix + 'chr1_first100.bed.gz'
+    bedfilename = fileprefix + 'chr1_first3.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
     np.set_printoptions(edgeitems=100)
 
@@ -250,10 +257,20 @@ def main():
     tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
     jf_tabund, jf_eabund = jellyfish_abundances(samfile, conf_regions, jfalltable, jferrortable)
 
-    print("Totals equal?",np.array_equal(jf_tabund, tabund))
-    print("Errors equal?",np.array_equal(jf_eabund, eabund))
+    totseq = np.array_equal(jf_tabund, tabund)
+    errseq = np.array_equal(jf_eabund, eabund)
+    print("Totals equal?", totseq)
+    #if not totseq:
+    #    print("JF:",jf_tabund)
+    #    print("Khmer:",tabund)
+    print("Errors equal?", errseq)
+    #if not errseq:
+    #    print("JF:",jf_eabund)
+    #    print("Khmer:",eabund)
 
     perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
+    jf_perror = calc_perror(jf_tabund, jf_eabund)
+    print("Perror equal?",jf_perror)
     #perror[1] = observed p(error) for abundance of 1
 
     
