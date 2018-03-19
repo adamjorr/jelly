@@ -18,6 +18,9 @@ import datetime
 import dna_jellyfish as jellyfish
 from itertools import repeat
 from multiprocessing import Pool
+import scipy
+import scipy.stats
+import scipy.signal
 
 def get_confident_regions(bedfilename):
     '''
@@ -166,25 +169,32 @@ def load_files(samfilename, fafilename, bedfilename, vcffilename):
     vcf = load_vcf(vcffilename, conf_regions)
     return samfile, refdict, conf_regions, vcf    
 
-def plot_dists(totalabund, errorabund, errorweight, filename):
+def plot_dists(totalabund, errorweight, filename):
     print(tstamp(), "Making distribution plots . . .", file=sys.stderr)
     sns.set()
     plt.xlim(0,100)
     totalfig = plt.figure()
     # totalax = totalfig.add_subplot(211)
-    sns.distplot(totalabund, color = "g", hist_kws = {'alpha' : 0.6}, kde = False)
+    n, bins, patch = plt.hist(totalabund, bins = 'auto', color = "g", alpha = 0.5)
+    #sns.distplot(totalabund, color = "g", hist_kws = {'alpha' : 0.6})
 
     # errorax = totalfig.add_subplot(212)
-    sns.distplot(errorabund, hist_kws = {'weights' : errorweight, 'alpha' : 0.6}, color = "r", kde = False)
+    sns.distplot(totalabund, bins=bins, hist_kws={'weights' : errorweight, 'alpha' : 0.5}, color = "r", kde = False, norm_hist = True)
     totalfig.savefig(filename)
 
-def plot_perror(perror, filename):
+def plot_perror(perror, lambda_est, filename):
     #TODO: plot a fit of the error model too
     print(tstamp(), "Making abundance error probability plot . . .", file=sys.stderr)
+
+    x = np.arange(len(perror+1))
+    estimate = scipy.stats.poisson.pmf(x,mu=lambda_est)
+
     sns.set()
     plt.xlim(0,100)
     probabilityplot = plt.figure()
-    plt.plot(np.arange(len(perror+1)),perror, '.-')
+    plt.plot(x,perror, '.-')
+    plt.plot(x,estimate,'m.-')
+    plt.legend(label = ("empirical","estimate"))
     probabilityplot.savefig(filename)
 
 def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
@@ -192,15 +202,21 @@ def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
     eabund = np.array(errorabund)
     errorweight = np.true_divide(eabund,tabund)
     tcounts = np.bincount(totalabund)
-    ecounts = np.bincount(errorabund, weights = errorweight)
-    ecounts = np.pad(ecounts,(0,len(tcounts)-len(ecounts)),'constant')
+    ecounts = np.bincount(totalabund, weights = errorweight)
+    #ecounts = np.pad(ecounts,(0,len(tcounts)-len(ecounts)),'constant')
+    ecounts[0] = 0
     tcounts[0] = 1
+    print("Tcounts is not 0? Index of zero:", np.nonzero(tcounts == 0))
+    print(tcounts[0:10])
     perror = np.true_divide(ecounts, tcounts)
 
+    firstpeakidx = scipy.signal.argrelmax(tcounts)[0][0]
+    lambda_est = tcounts[firstpeakidx]
+
     if distplot is not None:
-        plot_dists(totalabund, errorabund, errorweight, distplot)
+        plot_dists(totalabund, errorweight, distplot)
     if errorplot is not None:
-        plot_perror(perror, errorplot)
+        plot_perror(perror, lambda_est, errorplot)
 
     return perror
 
@@ -231,7 +247,7 @@ def main():
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
     fafilename = fileprefix + 'chr1.renamed.fa'
-    bedfilename = fileprefix + 'chr1_first3.bed.gz'
+    bedfilename = fileprefix + 'chr1_first100.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
     np.set_printoptions(edgeitems=100)
 
