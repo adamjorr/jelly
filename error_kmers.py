@@ -82,11 +82,8 @@ def get_abundances(samfile, conf_regions, totaltable, errortable, trackingtable)
 def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize):
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
-            allmers = jellyfish.string_canonicals(read.query_sequence)
-            lmers = []
-            for mer in allmers:
-                lmers.append(mer)
-            for mer in lmers:
+            kmers = jellyfish.string_canonicals(read.query_sequence)
+            for mer in kmers:
                 alltable.add(mer,1)
             refchr = read.reference_name
             refpositions = read.get_reference_positions(full_length = True) #these should be 1-based but are actually 0-based
@@ -94,8 +91,9 @@ def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize
             if not errorpositions:
                 continue
             else:
-                mranges = mer_ranges(lmers, ksize)
-                errorkmers = [k for i,k in enumerate(lmers) if any([p in mranges[i] for p in errorpositions])]
+                mers = jellyfish.string_canonicals(read.query_sequence)
+                mranges = mer_ranges(mers, ksize)
+                errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
                 for k in errorkmers:
                     errortable.add(k,1)
     return alltable, errortable
@@ -105,11 +103,8 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
     counted = initialize_jf_hash() #use this hash so we don't double count any kmers
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
-            allmers = jellyfish.string_canonicals(read.query_sequence)
-            lmers = []
-            for mer in allmers:
-                lmers.append(mer)
-            for mer in lmers:
+            kmers = jellyfish.string_canonicals(read.query_sequence)
+            for mer in kmers:
                 if counted.get(mer) is None:
                     counted.add(mer,1)
                     errorcount = getcount(errortable, mer)
@@ -118,8 +113,6 @@ def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
                     assert totalcount > 0, "Mer {} has totalcount <= 0. ({})".format(mer, totalcount)
                     errorabund.append(errorcount)
                     totalabund.append(totalcount)
-                else:
-                    continue
     return totalabund, errorabund
 
 def mer_ranges(mers,ksize):
