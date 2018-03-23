@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import datetime
-import dna_jellyfish as jellyfish
+#import dna_jellyfish as jellyfish
 from itertools import repeat
 from multiprocessing import Pool
 import scipy
