@@ -265,14 +265,14 @@ def main():
     eabundfile = fileprefix + 'eabund.txt.gz'
     np.set_printoptions(edgeitems=100)
 
-    #set up hashes and load files
-    alltable, errortable, trackingtable = init_hashes()
-    samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
-
     if os.path.exists(tabundfile) and os.path.exists(eabundfile):
-        tabund = np.loadtxt(tabundfile)
-        eabund = np.loadtxt(eabundfile)
+        tabund = np.loadtxt(tabundfile, dtype = int)
+        eabund = np.loadtxt(eabundfile, dtype = int)
     else:
+        #set up hashes and load files
+        alltable, errortable, trackingtable = init_hashes()
+        samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
+
         #count
         print(tstamp(), "Counting . . .", file=sys.stderr)
         alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
@@ -280,8 +280,8 @@ def main():
         print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
         #each kmer has a position in these arrays; abund[kmer idx] = # occurrences
         tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
-        np.savetxt(tabundfile, tabund)
-        np.savetxt(eabundfile, eabund)
+        np.savetxt(tabundfile, tabund, fmt = '%u')
+        np.savetxt(eabundfile, eabund, fmt = '%u')
 
     #perror[1] = observed p(error) for abundance of 1
     perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
