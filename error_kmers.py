@@ -21,6 +21,7 @@ from multiprocessing import Pool
 import scipy
 import scipy.stats
 import scipy.signal
+import os.path
 
 def get_confident_regions(bedfilename):
     '''
@@ -175,26 +176,26 @@ def plot_dists(totalabund, errorweight, filename):
     plt.xlim(0,100)
     totalfig = plt.figure()
     # totalax = totalfig.add_subplot(211)
-    n, bins, patch = plt.hist(totalabund, bins = 'auto', color = "g", alpha = 0.5)
-    #sns.distplot(totalabund, color = "g", hist_kws = {'alpha' : 0.6})
+    h, bins = np.histogram(totalabund, bins = 'auto')
+    sns.distplot(totalabund, bins=bins, color = "g", hist_kws = {'alpha' : 0.6}, kde = False, norm_hist = False)
 
     # errorax = totalfig.add_subplot(212)
-    sns.distplot(totalabund, bins=bins, hist_kws={'weights' : errorweight, 'alpha' : 0.5}, color = "r", kde = False, norm_hist = True)
+    sns.distplot(totalabund, bins=bins, hist_kws={'weights' : errorweight, 'alpha' : 0.6}, color = "r", kde = False, norm_hist=False)
     totalfig.savefig(filename)
 
-def plot_perror(perror, lambda_est, filename):
+def plot_perror(perror, est_perror, filename):
     #TODO: plot a fit of the error model too
     print(tstamp(), "Making abundance error probability plot . . .", file=sys.stderr)
 
-    x = np.arange(len(perror+1))
-    estimate = scipy.stats.poisson.pmf(x,mu=lambda_est)
+    x = np.arange(len(perror))
+    #estimate = scipy.stats.poisson.sf(x,mu=lambda_est)
 
     sns.set()
     plt.xlim(0,100)
     probabilityplot = plt.figure()
     plt.plot(x,perror, '.-')
-    plt.plot(x,estimate,'m.-')
-    plt.legend(label = ("empirical","estimate"))
+    plt.plot(x,est_perror,'m.-')
+    plt.legend(labels = ("empirical","estimate"))
     probabilityplot.savefig(filename)
 
 def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
@@ -203,20 +204,31 @@ def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
     errorweight = np.true_divide(eabund,tabund)
     tcounts = np.bincount(totalabund)
     ecounts = np.bincount(totalabund, weights = errorweight)
-    #ecounts = np.pad(ecounts,(0,len(tcounts)-len(ecounts)),'constant')
     ecounts[0] = 0
     tcounts[0] = 1
-    print("Tcounts is not 0? Index of zero:", np.nonzero(tcounts == 0))
-    print(tcounts[0:10])
+    #print("Tcounts is not 0? Index of zero:", np.nonzero(tcounts == 0))
+    #print(tcounts[0:10])
     perror = np.true_divide(ecounts, tcounts)
 
-    firstpeakidx = scipy.signal.argrelmax(tcounts)[0][0]
-    lambda_est = tcounts[firstpeakidx]
+    lambda_ests = scipy.signal.argrelmax(tcounts)[0]
+    err_lambda = lambda_ests[0]
+    tot_lambda = lambda_ests[1]
+
+    x = np.arange(len(tcounts))
+    est_errs = scipy.stats.poisson.pmf(x, mu = err_lambda) / scipy.stats.poisson.pmf(err_lambda, mu = err_lambda) * tcounts[err_lambda]
+    est_tot = scipy.stats.poisson.pmf(x, mu = tot_lambda) / scipy.stats.poisson.pmf(tot_lambda, mu = tot_lambda) * tcounts[tot_lambda]
+    est_perror = np.true_divide(est_errs,est_tot)
+
+    est_plot = plt.figure()
+    plt.plot(x,est_errs,'r.-')
+    plt.plot(x,est_tot,'g.-')
+    plt.legend(labels = ('errors fit', 'total fit'))
+    est_plot.savefig('estimates.png')
 
     if distplot is not None:
         plot_dists(totalabund, errorweight, distplot)
     if errorplot is not None:
-        plot_perror(perror, lambda_est, errorplot)
+        plot_perror(perror, est_perror, errorplot)
 
     return perror
 
@@ -249,25 +261,30 @@ def main():
     fafilename = fileprefix + 'chr1.renamed.fa'
     bedfilename = fileprefix + 'chr1_first100.bed.gz'
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
+    tabundfile = fileprefix + 'tabund.txt.gz'
+    eabundfile = fileprefix + 'eabund.txt.gz'
     np.set_printoptions(edgeitems=100)
 
     #set up hashes and load files
     alltable, errortable, trackingtable = init_hashes()
     samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
 
-    #count
-    print(tstamp(), "Counting . . .", file=sys.stderr)
-    alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
+    if os.path.exists(tabundfile) and os.path.exists(eabundfile):
+        tabund = np.loadtxt(tabundfile)
+        eabund = np.loadtxt(eabundfile)
+    else:
+        #count
+        print(tstamp(), "Counting . . .", file=sys.stderr)
+        alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
 
-    print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
-    #each kmer has a position in these arrays; abund[kmer idx] = # occurrences
-    tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
+        print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
+        #each kmer has a position in these arrays; abund[kmer idx] = # occurrences
+        tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
+        np.savetxt(tabundfile, tabund)
+        np.savetxt(eabundfile, eabund)
 
     #perror[1] = observed p(error) for abundance of 1
     perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
-
-
-    
 
 if __name__ == '__main__':
     main()
