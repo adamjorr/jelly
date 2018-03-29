@@ -211,26 +211,37 @@ def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
     perror = np.true_divide(ecounts, tcounts)
 
     lambda_ests = scipy.signal.argrelmax(tcounts)[0]
-    err_lambda = lambda_ests[0]
-    tot_lambda = lambda_ests[1]
-
+    first_lambda = lambda_ests[0]
     x = np.arange(len(tcounts))
-    est_errs = scipy.stats.poisson.pmf(x, mu = err_lambda) / scipy.stats.poisson.pmf(err_lambda, mu = err_lambda) * tcounts[err_lambda]
-    est_tot = scipy.stats.poisson.pmf(x, mu = tot_lambda) / scipy.stats.poisson.pmf(tot_lambda, mu = tot_lambda) * tcounts[tot_lambda]
-    est_perror = np.true_divide(est_errs,est_tot)
-
-    est_plot = plt.figure()
-    plt.plot(x,est_errs,'r.-')
-    plt.plot(x,est_tot,'g.-')
-    plt.legend(labels = ('errors fit', 'total fit'))
-    est_plot.savefig('estimates.png')
-
+    r = 2
+    est_perror = .5 * scipy.stats.nbinom.pmf(x, r, r/(first_lambda+r)) + .5 * scipy.stats.uniform.pdf(x, scale = len(x))
+    peak = int(first_lambda / j)
+    est_perror = est_perror/max(est_perror) * .975
+    est_perror[:peak] = .975
+    
     if distplot is not None:
         plot_dists(totalabund, errorweight, distplot)
     if errorplot is not None:
         plot_perror(perror, est_perror, errorplot)
 
     return perror
+
+def count_qual_scores(samfile, ref, conf_regions, vcf):
+    numerrors = dict()
+    numtotal = dict()
+    for regionstr in conf_regions:
+        for read in samfile.fetch(region=regionstr):
+            refchr = read.reference_name
+            refpositions = read.get_reference_positions(full_length=True) #these should be 1-based positions but are actually 0-based
+            errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or (read.query_sequence[i] != ref[refchr][pos] and pos+1 not in vcf[refchr])]
+            quals = read.query_alignment_qualities
+            print(quals)
+            exit()
+            for i in quals:
+                numtotal[i] = numtotal.get(i,0) + 1
+            for i in errorpositions:
+                numerrors[quals[i]] = numerrors.get(quals[i],0) + 1
+    return numerrors, numtotal
 
 def main():
     # args = argparse() #TODO
@@ -265,6 +276,13 @@ def main():
     eabundfile = fileprefix + 'eabund.txt.gz'
     np.set_printoptions(edgeitems=100)
 
+    samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
+
+    #put this here temporarily TODO
+    numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
+    exit()
+    
+    
     if os.path.exists(tabundfile) and os.path.exists(eabundfile):
         tabund = np.loadtxt(tabundfile, dtype = int)
         eabund = np.loadtxt(eabundfile, dtype = int)
@@ -273,6 +291,10 @@ def main():
         alltable, errortable, trackingtable = init_hashes()
         samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
 
+        #put this here temporarily TODO
+        numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
+        exit()
+        
         #count
         print(tstamp(), "Counting . . .", file=sys.stderr)
         alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
@@ -282,9 +304,12 @@ def main():
         tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
         np.savetxt(tabundfile, tabund, fmt = '%u')
         np.savetxt(eabundfile, eabund, fmt = '%u')
+        
+        
 
-    #perror[1] = observed p(error) for abundance of 1
+    #perror[1] = observed p(error|x) for abundance of 1
     perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
+    
 
 if __name__ == '__main__':
     main()
