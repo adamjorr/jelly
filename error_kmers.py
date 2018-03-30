@@ -227,21 +227,30 @@ def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
     return perror
 
 def count_qual_scores(samfile, ref, conf_regions, vcf):
-    numerrors = dict()
-    numtotal = dict()
+    print(tstamp(), "Counting Base Quality Scores . . .", file=sys.stderr)
+    numerrors = np.zeros(40, dtype = np.uint64)
+    numtotal = np.zeros(40, dtype = np.uint64)
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             refchr = read.reference_name
             refpositions = read.get_reference_positions(full_length=True) #these should be 1-based positions but are actually 0-based
-            errorpositions = [i for i,pos in enumerate(refpositions) if pos is None or (read.query_sequence[i] != ref[refchr][pos] and pos+1 not in vcf[refchr])]
-            quals = read.query_alignment_qualities
-            print(quals)
-            exit()
-            for i in quals:
-                numtotal[i] = numtotal.get(i,0) + 1
-            for i in errorpositions:
-                numerrors[quals[i]] = numerrors.get(quals[i],0) + 1
+            errorpositions = np.array([i for i,pos in enumerate(refpositions) if pos is None or (read.query_sequence[i] != ref[refchr][pos] and pos+1 not in vcf[refchr])], dtype=np.intp)
+            quals = np.array(read.query_qualities, dtype=np.intp)
+            np.add.at(numtotal,quals,1)
+            np.add.at(numerrors,quals[errorpositions],1)
     return numerrors, numtotal
+
+def plot_qual_scores(numerrors, numtotal, plotname):
+    print(tstamp(), "Making Base Quality Score Plot . . .", file=sys.stderr)
+    p = numerrors/numtotal
+    y = np.arange(len(p))
+    x = 10**(-y/10)
+    
+    sns.set()
+    qualplot = plt.figure()
+    plt.plot(x,x)
+    plt.plot(x,p)
+    qualplot.savefig(plotname)
 
 def main():
     # args = argparse() #TODO
@@ -274,26 +283,20 @@ def main():
     vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
     tabundfile = fileprefix + 'tabund.txt.gz'
     eabundfile = fileprefix + 'eabund.txt.gz'
+    numerrsfile = fileprefix + 'numerrs.txt.gz'
+    numtotalfile = fileprefix + 'numtotal.txt.gz'
     np.set_printoptions(edgeitems=100)
-
-    samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
-
-    #put this here temporarily TODO
-    numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
-    exit()
     
     
-    if os.path.exists(tabundfile) and os.path.exists(eabundfile):
-        tabund = np.loadtxt(tabundfile, dtype = int)
-        eabund = np.loadtxt(eabundfile, dtype = int)
+    if os.path.exists(tabundfile) and os.path.exists(eabundfile) and os.path.exists(numerrsfile) and os.path.exists(numtotalfile):
+        tabund = np.loadtxt(tabundfile, dtype = np.uint64)
+        eabund = np.loadtxt(eabundfile, dtype = np.uint64)
+        numerrors = np.loadtxt(numerrsfile, dtype = np.uint64)
+        numtotal = np.loadtxt(numtotalfile, dtype = np.uint64)
     else:
         #set up hashes and load files
         alltable, errortable, trackingtable = init_hashes()
         samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
-
-        #put this here temporarily TODO
-        numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
-        exit()
         
         #count
         print(tstamp(), "Counting . . .", file=sys.stderr)
@@ -305,11 +308,15 @@ def main():
         np.savetxt(tabundfile, tabund, fmt = '%u')
         np.savetxt(eabundfile, eabund, fmt = '%u')
         
+        numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
+        np.savetxt(numerrsfile, numerrors, fmt = '%u')
+        np.savetxt(numtotalfile, numtotal, fmt = '%u')
         
-
     #perror[1] = observed p(error|x) for abundance of 1
     perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
+    numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
     
+    plot_qual_scores(numerrors, numtotal, "qualscores.png")
 
 if __name__ == '__main__':
     main()
