@@ -289,10 +289,10 @@ def main():
     
     
     if os.path.exists(tabundfile) and os.path.exists(eabundfile) and os.path.exists(numerrsfile) and os.path.exists(numtotalfile):
-        tabund = np.loadtxt(tabundfile, dtype = np.uint64)
-        eabund = np.loadtxt(eabundfile, dtype = np.uint64)
-        numerrors = np.loadtxt(numerrsfile, dtype = np.uint64)
-        numtotal = np.loadtxt(numtotalfile, dtype = np.uint64)
+        tabund = np.loadtxt(tabundfile, dtype = np.int64)
+        eabund = np.loadtxt(eabundfile, dtype = np.int64)
+        numerrors = np.loadtxt(numerrsfile, dtype = np.int64)
+        numtotal = np.loadtxt(numtotalfile, dtype = np.int64)
     else:
         #set up hashes and load files
         alltable, errortable, trackingtable = init_hashes()
