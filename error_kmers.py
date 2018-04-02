@@ -215,7 +215,7 @@ def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
     x = np.arange(len(tcounts))
     r = 2
     est_perror = .5 * scipy.stats.nbinom.pmf(x, r, r/(first_lambda+r)) + .5 * scipy.stats.uniform.pdf(x, scale = len(x))
-    peak = int(first_lambda / j)
+    peak = int(first_lambda / r)
     est_perror = est_perror/max(est_perror) * .975
     est_perror[:peak] = .975
     
