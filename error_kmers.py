@@ -305,16 +305,15 @@ def main():
         print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
         #each kmer has a position in these arrays; abund[kmer idx] = # occurrences
         tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
-        np.savetxt(tabundfile, tabund, fmt = '%u')
-        np.savetxt(eabundfile, eabund, fmt = '%u')
+        np.savetxt(tabundfile, tabund, fmt = '%d')
+        np.savetxt(eabundfile, eabund, fmt = '%d')
         
         numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
-        np.savetxt(numerrsfile, numerrors, fmt = '%u')
-        np.savetxt(numtotalfile, numtotal, fmt = '%u')
+        np.savetxt(numerrsfile, numerrors, fmt = '%d')
+        np.savetxt(numtotalfile, numtotal, fmt = '%d')
         
     #perror[1] = observed p(error|x) for abundance of 1
     perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
-    numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
     
     plot_qual_scores(numerrors, numtotal, "qualscores.png")
 
