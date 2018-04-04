@@ -252,6 +252,42 @@ def plot_qual_scores(numerrors, numtotal, plotname):
     plt.plot(x,p)
     qualplot.savefig(plotname)
 
+def correct_sam_test(samfile, conf_regions, outfile, tabund, perror):
+    largestidx = 0
+    kmerdex = dict()
+    khmer.khmer_args.info = newinfo
+    args = khmer.khmer_args.build_counting_args().parse_args()
+    trackingtable = khmer.khmer_args.create_countgraph(args)
+    ksize = trackingtable.ksize()
+    outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
+    
+    for regionstr in conf_regions:
+        for read in samfile.fetch(region=regionstr):
+            kmers = trackingtable.get_kmers(read.query_sequence)
+            quals = np.array(read.query_qualities, dtype=np.int)
+            for j, mer in enumerate(kmers):
+                if not trackingtable.get(mer):
+                    trackingtable.count(mer)
+                    i = largestidx
+                    kmerdex[mer] = i
+                    largestidx += 1
+                else:
+                    i = kmerdex[mer]
+                pe_given_abund = np.float64(perror[tabund[i]])
+                floatinfo = np.finfo(np.float64)
+                pe_given_abund = np.clip(pe_given_abund,floatinfo.tiny,1)
+                p = 10.0**(-quals[j:j+ksize]/10.0) #convert to probability
+                newp = np.true_divide(p,pe_given_abund) #in case pe_given_abund == 0
+                newp = np.clip(newp, floatinfo.tiny, 1)
+                q = -10.0*np.log10(newp)
+                quals[j:j+ksize] = np.rint(q)
+                
+            print(quals)
+            read.query_qualities = quals
+            outsam.write(read)
+    
+    
+    
 def main():
     # args = argparse() #TODO
     # print(get_kmers_covering("ATCGAA",3,4))
@@ -285,6 +321,7 @@ def main():
     eabundfile = fileprefix + 'eabund.txt.gz'
     numerrsfile = fileprefix + 'numerrs.txt.gz'
     numtotalfile = fileprefix + 'numtotal.txt.gz'
+    outfile = fileprefix + 'test.bam'
     np.set_printoptions(edgeitems=100)
     
     
@@ -315,7 +352,13 @@ def main():
     #perror[1] = observed p(error|x) for abundance of 1
     perror = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
     
+    samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
+    correct_sam_test(samfile, conf_regions, outfile, tabund, perror) #creates outfile
+    correctederrs, correctedtot = count_qual_scores(pysam.AlignmentFile(outfile),refdict, conf_regions, vcf)
+    
     plot_qual_scores(numerrors, numtotal, "qualscores.png")
+    plot_qual_scores(correctederrs, correctedtot, "corrected.png")
+    print(tstamp(), "Done", file = sys.stderr)
 
 if __name__ == '__main__':
     main()
