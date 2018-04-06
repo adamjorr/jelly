@@ -244,7 +244,7 @@ def plot_qual_scores(numerrors, numtotal, plotname):
     print(tstamp(), "Making Base Quality Score Plot . . .", file=sys.stderr)
     p = numerrors/numtotal
     y = np.arange(len(p))
-    x = 10**(-y/10)
+    x = 10.0**(-y/10.0)
     
     sns.set()
     qualplot = plt.figure()
