@@ -250,8 +250,9 @@ def plot_qual_scores(numerrors, numtotal, plotname):
     qualplot = plt.figure()
     plt.plot(x,x)
     plt.plot(x,p)
-    plt.xlabel("Predicted Probability")
-    plt.ylabel("Empirical Probability")
+    plt.xlabel("Predicted Probability of Error")
+    plt.ylabel("Empirical Probability of Error")
+    plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
     qualplot.savefig(plotname)
 
 def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
@@ -269,27 +270,36 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
         for read in samfile.fetch(region=regionstr):
             kmers = kgraph.get_kmers(read.query_sequence)
             quals = np.array(read.query_qualities, dtype=np.int)
-            for j, mer in enumerate(kmers):
-                count = kgraph.get(mer)
-                # abund = tcounts[count]
-                pe_given_abund = np.float64(perror[count])
-                # floatinfo = np.finfo(np.float64)
-                # pe_given_abund = np.clip(pe_given_abund,floatinfo.tiny,1)
-                p = 10.0**(-quals[j:j+ksize]/10.0) #convert to probability
-                # print("Initial probabilities:",p)
-                # newp = np.clip(p, floatinfo.tiny, 1)
-                # print("P(e | a) =",pe_given_abund)
-                p = np.true_divide(pe_given_abund * p, denom) # p(kmer error | abundance) * p(base error) / denom
-                # print("Updated probabilities:",p)
-                q = -10.0*np.log10(p)
-                # print("Updated score:",q)
-                q = np.rint(q)
-                quals[j:j+ksize] = np.clip(q, 0, 40)
+            newquals = np.zeros(len(quals), dtype=np.int)
+            mranges = mer_ranges(kmers, ksize)
+            for i, q in enumerate(quals):
+                mers = [mer for j, mer in enumerate(kmers) if i in mranges[j]]
+                counts = np.array(list(map(kgraph.get, mers)), dtype = np.int)
+                pe_given_abund = np.prod(perror[counts])
+                p = 10.0 ** (-q / 10.0)
+                newp = np.true_divide(pe_given_abund * p, denom)
+                newq = -10.0 * np.log10(newp)
+                newquals[i] = np.clip(np.rint(newq), 0, 40)
+                
+            # for j, mer in enumerate(kmers):
+            #     count = kgraph.get(mer)
+            #     # abund = tcounts[count]
+            #     pe_given_abund = np.float64(perror[count])
+            #     # floatinfo = np.finfo(np.float64)
+            #     # pe_given_abund = np.clip(pe_given_abund,floatinfo.tiny,1)
+            #     p = 10.0**(-quals[j:j+ksize]/10.0) #convert to probability
+            #     # print("Initial probabilities:",p)
+            #     # newp = np.clip(p, floatinfo.tiny, 1)
+            #     # print("P(e | a) =",pe_given_abund)
+            #     p = np.true_divide(pe_given_abund * p, denom) # p(kmer error | abundance) * p(base error) / denom
+            #     # print("Updated probabilities:",p)
+            #     q = -10.0*np.log10(p)
+            #     # print("Updated score:",q)
+            #     q = np.rint(q)
+            #     quals[j:j+ksize] = np.clip(q, 0, 40)
             # print(quals)
-            read.query_qualities = quals
+            read.query_qualities = newquals
             outsam.write(read)
-    
-    
     
 def main():
     # args = argparse() #TODO
@@ -363,11 +373,11 @@ def main():
     #tcounts[i] = number of kmers with count i
     
     #perror[1] = observed p(error|x) for abundance of 1
-    # perror, tcounts = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
+    perror, tcounts = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
     
     samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
-    # correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, alltable) #creates outfile
-    # pysam.index(outfile)
+    correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, alltable) #creates outfile
+    pysam.index(outfile)
     correctederrs, correctedtot = count_qual_scores(pysam.AlignmentFile(outfile),refdict, conf_regions, vcf)
     
     plot_qual_scores(numerrors, numtotal, "qualscores.png")
