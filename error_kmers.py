@@ -260,7 +260,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     ksize = kgraph.ksize()
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
-    denom = np.nansum(perror * (tcounts / np.sum(tcounts))) #sum p(kmer error | abundance) * p(abundance)
+    pa = tcounts/np.nansum(tcounts)
+    denom = np.nansum(perror * pa) #sum p(kmer error | abundance) * p(abundance)
+    ecounts = tcounts * perror
+    p_a_given_e = ecounts/np.nansum(ecounts)
     
     # print(tcounts)
     # print(perror)
@@ -270,35 +273,39 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
         for read in samfile.fetch(region=regionstr):
             kmers = kgraph.get_kmers(read.query_sequence)
             quals = np.array(read.query_qualities, dtype=np.int)
-            newquals = np.zeros(len(quals), dtype=np.int)
-            mranges = mer_ranges(kmers, ksize)
-            for i, q in enumerate(quals):
-                mers = [mer for j, mer in enumerate(kmers) if i in mranges[j]]
-                counts = np.array(list(map(kgraph.get, mers)), dtype = np.int)
-                pe_given_abund = np.prod(perror[counts])
-                p = 10.0 ** (-q / 10.0)
-                newp = np.true_divide(pe_given_abund * p, denom)
-                newq = -10.0 * np.log10(newp)
-                newquals[i] = np.clip(np.rint(newq), 0, 40)
+            # newquals = np.zeros(len(quals), dtype=np.int)
+            
+            # mranges = mer_ranges(kmers, ksize)
+            # for i, q in enumerate(quals):
+            #     mers = [mer for j, mer in enumerate(kmers) if i in mranges[j]]
+            #     counts = np.array(list(map(kgraph.get, mers)), dtype = np.int)
+            #     pe_given_abund = np.prod(perror[counts])
+            #     p = 10.0 ** (-q / 10.0)
+            #     newp = np.true_divide(pe_given_abund * p, denom)
+            #     newq = -10.0 * np.log10(newp)
+            #     newquals[i] = np.clip(np.rint(newq), 0, 40)
                 
-            # for j, mer in enumerate(kmers):
-            #     count = kgraph.get(mer)
-            #     # abund = tcounts[count]
-            #     pe_given_abund = np.float64(perror[count])
-            #     # floatinfo = np.finfo(np.float64)
-            #     # pe_given_abund = np.clip(pe_given_abund,floatinfo.tiny,1)
-            #     p = 10.0**(-quals[j:j+ksize]/10.0) #convert to probability
-            #     # print("Initial probabilities:",p)
-            #     # newp = np.clip(p, floatinfo.tiny, 1)
-            #     # print("P(e | a) =",pe_given_abund)
-            #     p = np.true_divide(pe_given_abund * p, denom) # p(kmer error | abundance) * p(base error) / denom
-            #     # print("Updated probabilities:",p)
-            #     q = -10.0*np.log10(p)
-            #     # print("Updated score:",q)
-            #     q = np.rint(q)
-            #     quals[j:j+ksize] = np.clip(q, 0, 40)
+            for j, mer in enumerate(kmers):
+                count = kgraph.get(mer)
+                # abund = tcounts[count]
+                pe_given_abund = np.float64(perror[count])
+                # pa_given_e = np.float64(p_a_given_e[count])
+                p_a = pa[count]
+                # floatinfo = np.finfo(np.float64)
+                # pe_given_abund = np.clip(pe_given_abund,floatinfo.tiny,1)
+                p = 10.0**(-quals[j:j+ksize]/10.0) #convert to probability
+                # print("Initial probabilities:",p)
+                # newp = np.clip(p, floatinfo.tiny, 1)
+                # print("P(e | a) =",pe_given_abund)
+                p = np.true_divide(pe_given_abund * p/np.sum(p), denom) # p(kmer error | abundance) * p(base error | kmer error) / denom
+                #p / np.sum p = weighted average of prior for each base in kmer
+                # print("Updated probabilities:",p)
+                q = -10.0*np.log10(p)
+                # print("Updated score:",q)
+                q = np.rint(q)
+                quals[j:j+ksize] = np.clip(q, 0, 40)
             # print(quals)
-            read.query_qualities = newquals
+            read.query_qualities = quals
             outsam.write(read)
     
 def main():
