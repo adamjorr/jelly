@@ -272,38 +272,43 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             kmers = kgraph.get_kmers(read.query_sequence)
+            counts = np.array(list(map(kgraph.get, kmers)), dtype = np.int)
             quals = np.array(read.query_qualities, dtype=np.int)
             # newquals = np.zeros(len(quals), dtype=np.int)
             
-            # mranges = mer_ranges(kmers, ksize)
-            # for i, q in enumerate(quals):
-            #     mers = [mer for j, mer in enumerate(kmers) if i in mranges[j]]
-            #     counts = np.array(list(map(kgraph.get, mers)), dtype = np.int)
-            #     pe_given_abund = np.prod(perror[counts])
-            #     p = 10.0 ** (-q / 10.0)
-            #     newp = np.true_divide(pe_given_abund * p, denom)
-            #     newq = -10.0 * np.log10(newp)
-            #     newquals[i] = np.clip(np.rint(newq), 0, 40)
+            mranges = mer_ranges(kmers, ksize)
+            for i, q in enumerate(quals):
+                abundances = [counts[j] for j in range(len(kmers)) if i in mranges[j]]
+                pabunds_given_e = np.prod(p_a_given_e[abundances])
+                denom = np.prod(pa[abundances])
+                ###
+                p = 10.0 ** (-q / 10.0)
+                p = np.true_divide(pabunds_given_e * p, denom)
+                q = -10.0 * np.log10(p)
+                quals[i] = np.clip(np.rint(q), 0, 40)
                 
-            for j, mer in enumerate(kmers):
-                count = kgraph.get(mer)
-                # abund = tcounts[count]
-                pe_given_abund = np.float64(perror[count])
-                # pa_given_e = np.float64(p_a_given_e[count])
-                p_a = pa[count]
-                # floatinfo = np.finfo(np.float64)
-                # pe_given_abund = np.clip(pe_given_abund,floatinfo.tiny,1)
-                p = 10.0**(-quals[j:j+ksize]/10.0) #convert to probability
-                # print("Initial probabilities:",p)
-                # newp = np.clip(p, floatinfo.tiny, 1)
-                # print("P(e | a) =",pe_given_abund)
-                p = np.true_divide(pe_given_abund * p/np.sum(p), denom) # p(kmer error | abundance) * p(base error | kmer error) / denom
-                #p / np.sum p = weighted average of prior for each base in kmer
-                # print("Updated probabilities:",p)
-                q = -10.0*np.log10(p)
-                # print("Updated score:",q)
-                q = np.rint(q)
-                quals[j:j+ksize] = np.clip(q, 0, 40)
+            # for j, mer in enumerate(kmers):
+            #     count = kgraph.get(mer)
+            #     # abund = tcounts[count]
+            #     pe_given_abund = np.float64(perror[count])
+            #     # pa_given_e = np.float64(p_a_given_e[count])
+            #     p_a = pa[count]
+            #     # floatinfo = np.finfo(np.float64)
+            #     # pe_given_abund = np.clip(pe_given_abund,floatinfo.tiny,1)
+            #     p = 10.0**(-quals[j:j+ksize]/10.0) #convert to probability
+            #     # print("Initial probabilities:",p)
+            #     # newp = np.clip(p, floatinfo.tiny, 1)
+            #     # print("P(e | a) =",pe_given_abund)
+            #     # p = p(E | H) * p(H) / p(E)
+            #     denom = np.nansum()
+            #     p = np
+            #     # p = np.true_divide(pe_given_abund * p/np.sum(p), denom) # p(kmer error | abundance) * p(base error | kmer error) / denom
+            #     #p / np.sum p = weighted average of prior for each base in kmer
+            #     # print("Updated probabilities:",p)
+            #     q = -10.0*np.log10(p)
+            #     # print("Updated score:",q)
+            #     q = np.rint(q)
+            #     quals[j:j+ksize] = np.clip(q, 0, 40)
             # print(quals)
             read.query_qualities = quals
             outsam.write(read)
