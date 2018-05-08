@@ -276,17 +276,31 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             quals = np.array(read.query_qualities, dtype=np.int)
             # newquals = np.zeros(len(quals), dtype=np.int)
             
-            mranges = mer_ranges(kmers, ksize)
-            for i, q in enumerate(quals):
-                abundances = [counts[j] for j in range(len(kmers)) if i in mranges[j]]
-                pabunds_given_e = np.prod(p_a_given_e[abundances])
-                denom = np.prod(pa[abundances])
-                ###
-                p = 10.0 ** (-q / 10.0)
-                p = np.true_divide(pabunds_given_e * p, denom)
-                q = -10.0 * np.log10(p)
-                quals[i] = np.clip(np.rint(q), 0, 40)
-                
+            # mranges = mer_ranges(kmers, ksize)
+            # for i, q in enumerate(quals):
+            #     abundances = [counts[j] for j in range(len(kmers)) if i in mranges[j]]
+            #     pabunds_given_e = np.prod(p_a_given_e[abundances])
+            #     denom = np.prod(pa[abundances])
+            #     ###
+            #     p = 10.0 ** (-q / 10.0)
+            #     p = np.true_divide(pabunds_given_e * p, denom)
+            #     q = -10.0 * np.log10(p)
+            #     quals[i] = np.clip(np.rint(q), 0, 40)
+            
+            #possible improved implementation of above
+            factors = np.ones(len(quals), dtype=np.float64)
+            f = p_a_given_e / pa
+            for j, count in enumerate(counts):
+                factors[j:j+ksize] = factors[j:j+ksize] * f[count]
+            p = 10.0**(-quals/10.0)
+            p = factors * p
+            q = -10.0*np.log10(p)
+            quals = np.array(np.rint(q), dtype=np.int)
+            quals = np.clip(quals, 0, 40)
+            read.query_qualities = quals
+
+
+
             # for j, mer in enumerate(kmers):
             #     count = kgraph.get(mer)
             #     # abund = tcounts[count]
