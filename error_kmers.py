@@ -14,6 +14,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+import time
 import datetime
 #import dna_jellyfish as jellyfish
 from itertools import repeat
@@ -261,9 +262,9 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
     pa = tcounts/np.nansum(tcounts)
-    denom = np.nansum(perror * pa) #sum p(kmer error | abundance) * p(abundance)
     ecounts = tcounts * perror
     p_a_given_e = ecounts/np.nansum(ecounts)
+    p_a_given_note = (tcounts-ecounts) / np.nansum(tcounts-ecounts)
     
     # print(tcounts)
     # print(perror)
@@ -274,58 +275,41 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             kmers = kgraph.get_kmers(read.query_sequence)
             counts = np.array(list(map(kgraph.get, kmers)), dtype = np.int)
             quals = np.array(read.query_qualities, dtype=np.int)
-            # newquals = np.zeros(len(quals), dtype=np.int)
             
-            # mranges = mer_ranges(kmers, ksize)
-            # for i, q in enumerate(quals):
-            #     abundances = [counts[j] for j in range(len(kmers)) if i in mranges[j]]
-            #     pabunds_given_e = np.prod(p_a_given_e[abundances])
-            #     denom = np.prod(pa[abundances])
-            #     ###
-            #     p = 10.0 ** (-q / 10.0)
-            #     p = np.true_divide(pabunds_given_e * p, denom)
-            #     q = -10.0 * np.log10(p)
-            #     quals[i] = np.clip(np.rint(q), 0, 40)
-            
-            #possible improved implementation of above
-            factors = np.ones(len(quals), dtype=np.float64)
-            f = p_a_given_e / pa
-            for j, count in enumerate(counts):
-                factors[j:j+ksize] = factors[j:j+ksize] * f[count]
             p = 10.0**(-quals/10.0)
-            p = factors * p
+            A = np.zeros((len(counts),2,2))
+            E = np.zeros((len(counts),2,1))
+            l = np.ones(len(p))
+            for j, count in enumerate(counts):
+                pe0 = p[j-1]
+                pe1 = p[j+ksize-1]
+                A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
+                E[j] = np.array([[p_a_given_e[count]],[p_a_given_note[count]]])
+                l[j:j+ksize] = l[j:j+ksize] * p_a_given_e[count]
+            
+            d = np.zeros(len(p))
+            mranges = mer_ranges(kmers, ksize)
+            for i in range(len(p)):
+                overlapping = np.array([j for j, r in enumerate(mranges) if i in r])
+                alpha = forward(A[overlapping],E[overlapping])
+                d[i] = alpha
+            
+            p = l * p / d
+            
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
             quals = np.clip(quals, 0, 40)
             read.query_qualities = quals
-
-
-
-            # for j, mer in enumerate(kmers):
-            #     count = kgraph.get(mer)
-            #     # abund = tcounts[count]
-            #     pe_given_abund = np.float64(perror[count])
-            #     # pa_given_e = np.float64(p_a_given_e[count])
-            #     p_a = pa[count]
-            #     # floatinfo = np.finfo(np.float64)
-            #     # pe_given_abund = np.clip(pe_given_abund,floatinfo.tiny,1)
-            #     p = 10.0**(-quals[j:j+ksize]/10.0) #convert to probability
-            #     # print("Initial probabilities:",p)
-            #     # newp = np.clip(p, floatinfo.tiny, 1)
-            #     # print("P(e | a) =",pe_given_abund)
-            #     # p = p(E | H) * p(H) / p(E)
-            #     denom = np.nansum()
-            #     p = np
-            #     # p = np.true_divide(pe_given_abund * p/np.sum(p), denom) # p(kmer error | abundance) * p(base error | kmer error) / denom
-            #     #p / np.sum p = weighted average of prior for each base in kmer
-            #     # print("Updated probabilities:",p)
-            #     q = -10.0*np.log10(p)
-            #     # print("Updated score:",q)
-            #     q = np.rint(q)
-            #     quals[j:j+ksize] = np.clip(q, 0, 40)
-            # print(quals)
-            read.query_qualities = quals
+            
             outsam.write(read)
+
+#numpy arrays are n x m, row by column; x[1,2] is 2nd row 3rd col
+def forward(A, E):
+    init = np.array([[.5],[.5]])
+    alpha = init * E[0] #think about this one!
+    for t in range(1, E.shape[0]): #the first element of the shape is the number of 2 x 1 matrices we have
+        alpha = np.matmul(np.transpose(A[t]),alpha) * E[t]
+    return np.nansum(alpha)
     
 def main():
     # args = argparse() #TODO
