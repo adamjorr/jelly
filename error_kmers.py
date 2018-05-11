@@ -301,8 +301,6 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             #         for j in range(0,2):
             #             epsilon[t,i,j] = alpha[t,i] * A[t,i,j] * beta[t+1,j] * E[t+1,j]
             print("epsilon:",epsilon)
-            print("gamma:",gamma)
-            print("gamma[:,0]:",gamma[:,0])
             update = epsilon / gamma[:,0]
             
             for j in range(len(update)):
