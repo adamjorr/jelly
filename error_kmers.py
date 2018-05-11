@@ -285,7 +285,28 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 pe1 = p[j+ksize-1]
                 A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
                 E[j] = np.array([[p_a_given_e[count]],[p_a_given_note[count]]])
-                l[j:j+ksize] = l[j:j+ksize] * p_a_given_e[count] * (1-pe0+pe0*pe1) # p(o|h) * p(h)
+                # l[j:j+ksize] = l[j:j+ksize] * p_a_given_e[count] * (1-pe0+pe0*pe1) # p(o|h) * p(h)
+            alpha = forward(A,E)
+            beta = backward(A,E)
+            gamma = alpha * beta / np.sum(alpha * beta, axis=0) #gamma[0] = nonerror, gamma[1] = error
+            beta = np.roll(beta, -1, axis=0) #roll back beta so all beta indices are t+1
+            E = np.roll(E, -1, axis=0)
+            
+            epsilon = alpha[:,0] * A[:,0,1] * beta[:,1] * E[:,1] / np.sum(alpha * beta, axis=1)
+            
+            # full epsilon calc; I only care about cell 0,1
+            # epsilon = np.array((len(counts)-1,2,2))
+            # for t in range(len(counts)-1):
+            #     for i in range(0,2):
+            #         for j in range(0,2):
+            #             epsilon[t,i,j] = alpha[t,i] * A[t,i,j] * beta[t+1,j] * E[t+1,j]
+            print("epsilon:",epsilon)
+            print("gamma:",gamma)
+            print("gamma[:,0]:",gamma[:,0])
+            update = epsilon / gamma[:,0]
+            
+            for j in range(len(update)):
+                p[j + ksize - 1] = update[j]
             
             # d = np.zeros(len(p))
             # mranges = mer_ranges(kmers, ksize)
@@ -293,9 +314,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             #     overlapping = np.array([j for j, r in enumerate(mranges) if i in r])
             #     alpha = forward(A[overlapping],E[overlapping])
             #     d[i] = alpha
-            d = forward(A, E)
+            # d = forward(A, E)
             
-            p = l / d
+            #see if this works, if not try p(h|o) = 1 - pe0 + pe0 * pe1; fix pe0 and solve for pe1
+            # p = l / d
             
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
@@ -307,11 +329,19 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
 #numpy arrays are n x m, row by column; x[1,2] is 2nd row 3rd col
 def forward(A, E):
     init = np.array([[.5],[.5]])
-    alpha = init * E[0] #think about this one!
+    alpha = np.zeros((E.shape[0],2,1))
+    alpha[0,] = init * E[0] #think about this one!
     for t in range(1, E.shape[0]): #the first element of the shape is the number of 2 x 1 matrices we have
-        alpha = np.matmul(np.transpose(A[t]),alpha) * E[t]
-    return np.nansum(alpha)
-    
+        alpha[t] = np.matmul(np.transpose(A[t-1]),alpha[t-1]) * E[t]
+    return alpha
+
+def backward(A, E):
+    beta = np.zeros((E.shape[0],2,1))
+    beta[-1,] = np.array([[1],[1]])
+    for t in reversed(range(0,E.shape[0]-1)):
+        beta[t] = np.matmul(A[t],E[t] * beta[t+1])
+    return beta
+
 def main():
     # args = argparse() #TODO
     # print(get_kmers_covering("ATCGAA",3,4))
