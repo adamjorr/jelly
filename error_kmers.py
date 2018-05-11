@@ -285,16 +285,17 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 pe1 = p[j+ksize-1]
                 A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
                 E[j] = np.array([[p_a_given_e[count]],[p_a_given_note[count]]])
-                l[j:j+ksize] = l[j:j+ksize] * p_a_given_e[count]
+                l[j:j+ksize] = l[j:j+ksize] * p_a_given_e[count] * (1-pe0+pe0*pe1) # p(o|h) * p(h)
             
-            d = np.zeros(len(p))
-            mranges = mer_ranges(kmers, ksize)
-            for i in range(len(p)):
-                overlapping = np.array([j for j, r in enumerate(mranges) if i in r])
-                alpha = forward(A[overlapping],E[overlapping])
-                d[i] = alpha
+            # d = np.zeros(len(p))
+            # mranges = mer_ranges(kmers, ksize)
+            # for i in range(len(p)):
+            #     overlapping = np.array([j for j, r in enumerate(mranges) if i in r])
+            #     alpha = forward(A[overlapping],E[overlapping])
+            #     d[i] = alpha
+            d = forward(A, E)
             
-            p = l * p / d
+            p = l / d
             
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
