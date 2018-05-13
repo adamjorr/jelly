@@ -286,13 +286,14 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
                 E[j] = np.array([[p_a_given_e[count]],[p_a_given_note[count]]])
                 # l[j:j+ksize] = l[j:j+ksize] * p_a_given_e[count] * (1-pe0+pe0*pe1) # p(o|h) * p(h)
-            alpha = forward(A,E)
-            beta = backward(A,E)
-            gamma = alpha * beta / np.sum(alpha * beta, axis=0) #gamma[0] = nonerror, gamma[1] = error
+            alpha = forward(A,E) #shape = (t,2,1)
+            beta = backward(A,E) #shape = (t,2,1)
+            denom = np.sum(alpha * beta, axis = 1)[:,0]
+            gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error
             beta = np.roll(beta, -1, axis=0) #roll back beta so all beta indices are t+1
-            E = np.roll(E, -1, axis=0)
+            E = np.roll(E, -1, axis=0) #emission matrix too
             
-            epsilon = alpha[:,0] * A[:,0,1] * beta[:,1] * E[:,1] / np.sum(alpha * beta, axis=1)
+            epsilon = alpha[:,0,0] * A[:,0,1] * beta[:,1,0] * E[:,1,0] / denom
             
             # full epsilon calc; I only care about cell 0,1
             # epsilon = np.array((len(counts)-1,2,2))
@@ -300,8 +301,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             #     for i in range(0,2):
             #         for j in range(0,2):
             #             epsilon[t,i,j] = alpha[t,i] * A[t,i,j] * beta[t+1,j] * E[t+1,j]
-            print("epsilon:",epsilon)
-            update = epsilon / gamma[:,0]
+            update = epsilon / gamma[:,0,0]
             
             for j in range(len(update)):
                 p[j + ksize - 1] = update[j]
