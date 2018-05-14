@@ -263,6 +263,8 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     
     pa = tcounts/np.nansum(tcounts)
     ecounts = tcounts * perror
+    perr = np.nansum(ecounts)/np.nansum(tcounts)
+    pi = np.array([[1-perr],[perr]])
     p_a_given_e = ecounts/np.nansum(ecounts)
     p_a_given_note = (tcounts-ecounts) / np.nansum(tcounts-ecounts)
     
@@ -279,44 +281,31 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             p = 10.0**(-quals/10.0)
             A = np.zeros((len(counts),2,2))
             E = np.zeros((len(counts),2,1))
-            l = np.ones(len(p))
-            for j, count in enumerate(counts):
-                pe0 = p[j-1]
-                pe1 = p[j+ksize-1]
-                A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
-                E[j] = np.array([[p_a_given_e[count]],[p_a_given_note[count]]])
-                # l[j:j+ksize] = l[j:j+ksize] * p_a_given_e[count] * (1-pe0+pe0*pe1) # p(o|h) * p(h)
-            alpha = forward(A,E) #shape = (t,2,1)
-            beta = backward(A,E) #shape = (t,2,1)
-            denom = np.sum(alpha * beta, axis = 1)[:,0]
-            gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error
-            beta = np.roll(beta, -1, axis=0) #roll back beta so all beta indices are t+1
-            E = np.roll(E, -1, axis=0) #emission matrix too
-            
-            epsilon = alpha[:,0,0] * A[:,0,1] * beta[:,1,0] * E[:,1,0] / denom
-            
-            # full epsilon calc; I only care about cell 0,1
-            # epsilon = np.array((len(counts)-1,2,2))
-            # for t in range(len(counts)-1):
-            #     for i in range(0,2):
-            #         for j in range(0,2):
-            #             epsilon[t,i,j] = alpha[t,i] * A[t,i,j] * beta[t+1,j] * E[t+1,j]
-            update = epsilon / gamma[:,0,0]
-            
-            for j in range(len(update)):
-                p[j + ksize - 1] = update[j]
-            
-            # d = np.zeros(len(p))
-            # mranges = mer_ranges(kmers, ksize)
-            # for i in range(len(p)):
-            #     overlapping = np.array([j for j, r in enumerate(mranges) if i in r])
-            #     alpha = forward(A[overlapping],E[overlapping])
-            #     d[i] = alpha
-            # d = forward(A, E)
-            
-            #see if this works, if not try p(h|o) = 1 - pe0 + pe0 * pe1; fix pe0 and solve for pe1
-            # p = l / d
-            
+            for z in range(1):
+                for j, count in enumerate(counts):
+                    pe0 = p[j-1]
+                    pe1 = p[j+ksize-1]
+                    A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
+                    E[j] = np.array([[p_a_given_e[count]],[p_a_given_note[count]]])
+                alpha = forward(A,E,pi) #shape = (t,2,1)
+                beta = backward(A,E) #shape = (t,2,1)
+                denom = np.sum(alpha * beta, axis = 1)[:,0]
+                gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error
+                #beta = np.roll(beta, -1, axis=0) #roll back beta so all beta indices are t+1
+                #E = np.roll(E, -1, axis=0) #emission matrix too
+
+                epsilon_last = alpha[:-1,0,0] * A[1:,0,1] * beta[1:,1,0] * E[1:,1,0] / denom[:-1] #epsilon t,0,1
+                epsilon_first = alpha[:-1,1,0] * A[1:,1,0] * beta[1:,0,0] * E[1:,0,0] / denom[:-1] #epsilon t,1,0
+                #epsilon_notpe = alpha[:-1,0,0] * A[1:,0,0] * beta[1:,0,0] * E[1:,0,0] / denom[:-1] #epsilon t,0,0
+                #print(np.allclose(epsilon/gamma[:-1,0,0], 1-(epsilon_notpe/gamma[:-1,0,0])))
+                update = np.zeros(len(p))
+                update[:ksize] = (epsilon_first[:ksize]/gamma[:ksize,1,0])/(1-(epsilon_last[:ksize]/gamma[:ksize,0,0]))
+                update[ksize:] = epsilon_last / gamma[:-1,0,0]
+                #overlapping = np.zeros(len(update_last))
+                #overlapping[:ksize] = epsilon_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
+                #update_first = (epsilon_first + overlapping) / #figure this out tomorrow, this seems hard
+                p = update
+
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
             quals = np.clip(quals, 0, 40)
@@ -325,19 +314,18 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             outsam.write(read)
 
 #numpy arrays are n x m, row by column; x[1,2] is 2nd row 3rd col
-def forward(A, E):
-    init = np.array([[.5],[.5]])
+def forward(A, E, pi):
     alpha = np.zeros((E.shape[0],2,1))
-    alpha[0,] = init * E[0] #think about this one!
+    alpha[0,] = pi * E[0] #think about this one!
     for t in range(1, E.shape[0]): #the first element of the shape is the number of 2 x 1 matrices we have
-        alpha[t] = np.matmul(np.transpose(A[t-1]),alpha[t-1]) * E[t]
+        alpha[t] = np.matmul(np.transpose(A[t]),alpha[t-1]) * E[t]
     return alpha
 
 def backward(A, E):
     beta = np.zeros((E.shape[0],2,1))
     beta[-1,] = np.array([[1],[1]])
     for t in reversed(range(0,E.shape[0]-1)):
-        beta[t] = np.matmul(A[t],E[t] * beta[t+1])
+        beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1])
     return beta
 
 def main():
