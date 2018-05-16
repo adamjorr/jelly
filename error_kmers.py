@@ -298,12 +298,14 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 epsilon_first = alpha[:-1,1,0] * A[1:,1,0] * beta[1:,0,0] * E[1:,0,0] / denom[:-1] #epsilon t,1,0
                 #epsilon_notpe = alpha[:-1,0,0] * A[1:,0,0] * beta[1:,0,0] * E[1:,0,0] / denom[:-1] #epsilon t,0,0
                 #print(np.allclose(epsilon/gamma[:-1,0,0], 1-(epsilon_notpe/gamma[:-1,0,0])))
-                new_p0 = (epsilon_first/gamma[:-1,1,0])/(1-(epsilon_last/gamma[:-1,1,0]))
+                new_p0 = (epsilon_first/gamma[:-1,1,0])/(1-(epsilon_last/gamma[:-1,0,0]))
                 new_p1 = epsilon_last / gamma[:-1,0,0]
                 update = np.zeros(len(p))
                 update[:ksize] = new_p0[:ksize]
                 #update[ksize:-ksize] = .5 * new_p0[ksize:] + .5 * new_p1[:-ksize]
-                update[ksize:-ksize] = (epsilon_first[ksize:] * new_p0[ksize:] + epsilon_last[:-ksize] * new_p1[:-ksize])/(gamma[ksize:-1,1,0] + gamma[:-ksize-1,0,0])
+                update_denom = gamma[ksize:-1,0,0] + gamma[:-ksize-1,1,0]
+                # update[ksize:-ksize] = (new_p0[ksize:] + new_p1[:-ksize]) / update_denom
+                update[ksize:-ksize] = (epsilon_first/gamma[:-1,0,0])[ksize:] + new_p1[:-ksize]
                 update[-ksize:] = new_p1[-ksize:]
                 #overlapping = np.zeros(len(update_last))
                 #overlapping[:ksize] = epsilon_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
