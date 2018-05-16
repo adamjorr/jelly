@@ -304,8 +304,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 update[:ksize] = new_p0[:ksize]
                 #update[ksize:-ksize] = .5 * new_p0[ksize:] + .5 * new_p1[:-ksize]
                 update_denom = gamma[ksize:-1,0,0] + gamma[:-ksize-1,1,0]
-                # update[ksize:-ksize] = (new_p0[ksize:] + new_p1[:-ksize]) / update_denom
-                update[ksize:-ksize] = (epsilon_first/gamma[:-1,0,0])[ksize:] + new_p1[:-ksize]
+                update[ksize:-ksize] = (new_p0[ksize:] + new_p1[:-ksize]) / update_denom
                 update[-ksize:] = new_p1[-ksize:]
                 #overlapping = np.zeros(len(update_last))
                 #overlapping[:ksize] = epsilon_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
