@@ -281,7 +281,8 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             p = 10.0**(-quals/10.0)
             A = np.zeros((len(counts),2,2))
             E = np.zeros((len(counts),2,1))
-            for z in range(1):
+            likelihood = 0
+            for z in range(2):
                 for j, count in enumerate(counts):
                     pe0 = p[j-1]
                     pe1 = p[j+ksize-1]
@@ -289,13 +290,15 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                     E[j] = np.array([[p_a_given_e[count]],[p_a_given_note[count]]])
                 alpha = forward(A,E,pi) #shape = (t,2,1)
                 beta = backward(A,E) #shape = (t,2,1)
-                denom = np.sum(alpha * beta, axis = 1)[:,0]
+                denom = np.sum((alpha * beta)[-1])
+                assert denom >= likelihood #the new likelihood should be better than the old one
+                likelihood = denom
                 gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error
                 #beta = np.roll(beta, -1, axis=0) #roll back beta so all beta indices are t+1
                 #E = np.roll(E, -1, axis=0) #emission matrix too
 
-                epsilon_last = alpha[:-1,0,0] * A[1:,0,1] * beta[1:,1,0] * E[1:,1,0] / denom[:-1] #epsilon t,0,1
-                epsilon_first = alpha[:-1,1,0] * A[1:,1,0] * beta[1:,0,0] * E[1:,0,0] / denom[:-1] #epsilon t,1,0
+                epsilon_last = alpha[:-1,0,0] * A[1:,0,1] * beta[1:,1,0] * E[1:,1,0] / denom #epsilon t,0,1
+                epsilon_first = alpha[:-1,1,0] * A[1:,1,0] * beta[1:,0,0] * E[1:,0,0] / denom #epsilon t,1,0
                 #epsilon_notpe = alpha[:-1,0,0] * A[1:,0,0] * beta[1:,0,0] * E[1:,0,0] / denom[:-1] #epsilon t,0,0
                 #print(np.allclose(epsilon/gamma[:-1,0,0], 1-(epsilon_notpe/gamma[:-1,0,0])))
                 new_p0 = (epsilon_first/gamma[:-1,1,0])/(1-(epsilon_last/gamma[:-1,0,0]))
@@ -304,7 +307,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 update[:ksize] = new_p0[:ksize]
                 #update[ksize:-ksize] = .5 * new_p0[ksize:] + .5 * new_p1[:-ksize]
                 update_denom = gamma[ksize:-1,0,0] + gamma[:-ksize-1,1,0]
-                update[ksize:-ksize] = (new_p0[ksize:] + new_p1[:-ksize]) / update_denom
+                update[ksize:-ksize] = (epsilon_first[ksize:] * new_p0[ksize:] + epsilon_last[:-ksize] * new_p1[:-ksize]) / update_denom
                 update[-ksize:] = new_p1[-ksize:]
                 #overlapping = np.zeros(len(update_last))
                 #overlapping[:ksize] = epsilon_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
