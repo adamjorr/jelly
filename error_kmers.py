@@ -263,8 +263,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     
     pa = tcounts/np.nansum(tcounts)
     ecounts = tcounts * perror
-    perr = np.nansum(ecounts)/np.nansum(tcounts)
-    pi = np.array([[1-perr],[perr]])
+    p_e_given_a = ecounts/tcounts
     p_a_given_e = ecounts/np.nansum(ecounts)
     p_a_given_note = (tcounts-ecounts) / np.nansum(tcounts-ecounts)
     
@@ -283,36 +282,34 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             E = np.zeros((len(counts),2,1))
             likelihood = 0
             for z in range(2):
-                for j, count in enumerate(counts):
-                    pe0 = p[j-1]
+                for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
+                    pe0 = p[j-1] #A[0] will not make any sense because of this
                     pe1 = p[j+ksize-1]
-                    A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
-                    E[j] = np.array([[p_a_given_e[count]],[p_a_given_note[count]]])
+                    A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]]) #A is size len(counts), but A[0] is meaningless
+                    E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]]) #E is size len(counts)
+                pi = np.array([[p_e_given_a[counts[0]]],[1-p_e_given_a[counts[0]]]]) #probability for 1st state
+
                 alpha = forward(A,E,pi) #shape = (t,2,1)
                 beta = backward(A,E) #shape = (t,2,1)
-                denom = np.sum((alpha * beta)[-1])
+                denom = np.sum((alpha * beta)[-1]) #this is a single value
                 assert denom >= likelihood #the new likelihood should be better than the old one
                 likelihood = denom
-                gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error
+                gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error, gamma is the length of the state sequence
                 #beta = np.roll(beta, -1, axis=0) #roll back beta so all beta indices are t+1
                 #E = np.roll(E, -1, axis=0) #emission matrix too
 
-                epsilon_last = alpha[:-1,0,0] * A[1:,0,1] * beta[1:,1,0] * E[1:,1,0] / denom #epsilon t,0,1
-                epsilon_first = alpha[:-1,1,0] * A[1:,1,0] * beta[1:,0,0] * E[1:,0,0] / denom #epsilon t,1,0
-                #epsilon_notpe = alpha[:-1,0,0] * A[1:,0,0] * beta[1:,0,0] * E[1:,0,0] / denom[:-1] #epsilon t,0,0
-                #print(np.allclose(epsilon/gamma[:-1,0,0], 1-(epsilon_notpe/gamma[:-1,0,0])))
-                new_p0 = (epsilon_first/gamma[:-1,1,0])/(1-(epsilon_last/gamma[:-1,0,0]))
-                new_p1 = epsilon_last / gamma[:-1,0,0]
-                update = np.zeros(len(p))
-                update[:ksize] = new_p0[:ksize]
-                #update[ksize:-ksize] = .5 * new_p0[ksize:] + .5 * new_p1[:-ksize]
-                update_denom = gamma[ksize:-1,0,0] + gamma[:-ksize-1,1,0]
-                update[ksize:-ksize] = (epsilon_first[ksize:] * new_p0[ksize:] + epsilon_last[:-ksize] * new_p1[:-ksize]) / update_denom
-                update[-ksize:] = new_p1[-ksize:]
+                xi = alpha[:-1,0,0] * A[1:,0,1] * beta[1:,1,0] * E[1:,1,0] / denom #xi is the length of the number of transitions, or the length of the state sequence -1
+                #epsilon_first = alpha[:-1,1,0] * A[1:,1,0] * beta[1:,0,0] * E[1:,0,0] / denom #xi t,1,0
+                #new_p0 = (xi_first/gamma[:-1,1,0])/(1-(xi_last/gamma[:-1,0,0]))
+                update = xi / gamma[:-1,0,0] #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+                #update[:ksize] = new_p0[:ksize]
+                #update_denom = gamma[ksize:-1,0,0] + gamma[:-ksize-1,1,0]
+                #update[ksize:-ksize] = (gamma[ksize:-1,0,0] * new_p0[ksize:] + gamma[:-ksize-1,1,0] * new_p1[:-ksize])
+                p[ksize:] = update #we don't subtract one because we can't get the transition probability for the first state
                 #overlapping = np.zeros(len(update_last))
-                #overlapping[:ksize] = epsilon_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
-                #update_first = (epsilon_first + overlapping) / #figure this out tomorrow, this seems hard
-                p = update
+                #overlapping[:ksize] = xi_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
+                #update_first = (xi_first + overlapping) / #figure this out tomorrow, this seems hard
+                #p = update
 
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
@@ -324,10 +321,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
 #numpy arrays are n x m, row by column; x[1,2] is 2nd row 3rd col
 def forward(A, E, pi):
     alpha = np.zeros((E.shape[0],2,1))
-    alpha[0,] = pi * E[0] #think about this one!
+    alpha[0,] = pi * E[0] #pi is p(err, 1st kmer), which is not in E
     for t in range(1, E.shape[0]): #the first element of the shape is the number of 2 x 1 matrices we have
         alpha[t] = np.matmul(np.transpose(A[t]),alpha[t-1]) * E[t]
-    return alpha
+    return alpha #alpha is the number of transitions + 1, = to the number of states
 
 def backward(A, E):
     beta = np.zeros((E.shape[0],2,1))
