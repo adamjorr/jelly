@@ -282,7 +282,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             E = np.zeros((len(counts),2,1))
             pi = np.array([[p_e_given_a[counts[0]]],[1-p_e_given_a[counts[0]]]]) #probability for 1st state
             loglike = np.NINF #initialize loglike at -infinity
-            for z in range(10):
+            for z in range(1):
                 for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                     pe0 = p[j-1] #A[0] will not make any sense because of this
                     pe1 = p[j+ksize-1]
@@ -292,24 +292,22 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
                 beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
                 denom = np.sum(alpha * beta, axis = 1, keepdims = True) #shape = (t, 1, 1)
-                #newloglike = np.sum(np.log(normalizer))
-                #foo = np.sum(alpha[-1]*normalizer[-1])
-                #assert foo == np.exp(newloglike)
+                newloglike = np.sum(np.log(normalizer))
                 #print("New log likelihood:", newloglike)
                 #print("Previous log likelihood:", loglike)
-                #try:
-                #    assert newloglike >= loglike #the new likelihood should be better than the old one
-                #except AssertionError:
-                #    print("Previous log likelihood:", loglike)
-                #    print("New log likelihood:", newloglike)
+                try:
+                   assert newloglike >= loglike #the new likelihood should be better than the old one
+                except AssertionError:
+                   print("Previous log likelihood:", loglike)
+                   print("New log likelihood:", newloglike)
                 #    #print("Previous Xi:", xi)
                 #    #print("Previous Update:", update)
-                #    raise
-                #loglike = newloglike
+                   raise
+                loglike = newloglike
                 gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error, gamma is the length of the state sequence
                 pi = gamma[0,] #update pi
 
-                xi = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1)) / (normalizer[1:] * denom[:-1]) #xi is the length of the number of transitions, or the length of the state sequence -1
+                xi = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1)) / denom[:-1] #xi is the length of the number of transitions, or the length of the state sequence -1
                 update = xi / np.sum(xi, axis = 2, keepdims = True) #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
                 #update[0] is updated probabilities for state 1, ... update[-1] is updated probabilities for the last state. State 0 can't be updated.
                 p[ksize:] = update[:,0,1] #we don't subtract one because we can't get the transition probability for the first state. the last ksize bases are nonoverlapping
@@ -337,8 +335,9 @@ def normalized_forward(A, E, pi):
     normalizer[0] = np.sum(pi * E[0])
     alpha[0,] = pi * E[0] / normalizer[0]
     for t in range(1, E.shape[0]):
-        normalizer[t] = np.sum(alpha[t-1])
-        alpha[t] = (np.matmul(np.transpose(A[t]),alpha[t-1]) * E[t]) / normalizer[t]
+        unscaled_alpha = np.matmul(np.transpose(A[t]),alpha[t-1]) * E[t]
+        normalizer[t] = np.sum(unscaled_alpha)
+        alpha[t] = unscaled_alpha / normalizer[t]
     return alpha, normalizer
 
 def normalized_backward(A, E, normalizer):
@@ -347,9 +346,9 @@ def normalized_backward(A, E, normalizer):
     It is convenient to use this normalization factor because it cancels out during gamma and xi calculation.
     """
     beta = np.zeros((E.shape[0],2,1))
-    beta[-1,] = np.array([[1.0],[1.0]])
+    beta[-1,] = np.array([[1.0],[1.0]])/normalizer[-1]
     for t in reversed(range(0,E.shape[0]-1)):
-        beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1]) / normalizer[t+1]
+        beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1]) / normalizer[t]
     return beta
 
 def forward(A, E, pi):
