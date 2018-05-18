@@ -280,32 +280,40 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             p = 10.0**(-quals/10.0)
             A = np.zeros((len(counts),2,2))
             E = np.zeros((len(counts),2,1))
-            likelihood = 0
-            for z in range(2):
+            pi = np.array([[p_e_given_a[counts[0]]],[1-p_e_given_a[counts[0]]]]) #probability for 1st state
+            loglike = np.NINF #initialize loglike at -infinity
+            for z in range(10):
                 for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                     pe0 = p[j-1] #A[0] will not make any sense because of this
                     pe1 = p[j+ksize-1]
                     A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]]) #A is size len(counts), but A[0] is meaningless
                     E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]]) #E is size len(counts)
-                pi = np.array([[p_e_given_a[counts[0]]],[1-p_e_given_a[counts[0]]]]) #probability for 1st state
 
-                alpha = forward(A,E,pi) #shape = (t,2,1)
-                beta = backward(A,E) #shape = (t,2,1)
-                denom = np.sum((alpha * beta)[-1]) #this is a single value
-                assert denom >= likelihood #the new likelihood should be better than the old one
-                likelihood = denom
+                alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
+                beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
+                denom = np.sum(alpha * beta, axis = 1, keepdims = True) #shape = (t, 1, 1)
+                #newloglike = np.sum(np.log(normalizer))
+                #foo = np.sum(alpha[-1]*normalizer[-1])
+                #assert foo == np.exp(newloglike)
+                #print("New log likelihood:", newloglike)
+                #print("Previous log likelihood:", loglike)
+                #try:
+                #    assert newloglike >= loglike #the new likelihood should be better than the old one
+                #except AssertionError:
+                #    print("Previous log likelihood:", loglike)
+                #    print("New log likelihood:", newloglike)
+                #    #print("Previous Xi:", xi)
+                #    #print("Previous Update:", update)
+                #    raise
+                #loglike = newloglike
                 gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error, gamma is the length of the state sequence
-                #beta = np.roll(beta, -1, axis=0) #roll back beta so all beta indices are t+1
-                #E = np.roll(E, -1, axis=0) #emission matrix too
+                pi = gamma[0,] #update pi
 
-                xi = alpha[:-1,0,0] * A[1:,0,1] * beta[1:,1,0] * E[1:,1,0] / denom #xi is the length of the number of transitions, or the length of the state sequence -1
-                #epsilon_first = alpha[:-1,1,0] * A[1:,1,0] * beta[1:,0,0] * E[1:,0,0] / denom #xi t,1,0
-                #new_p0 = (xi_first/gamma[:-1,1,0])/(1-(xi_last/gamma[:-1,0,0]))
-                update = xi / gamma[:-1,0,0] #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
-                #update[:ksize] = new_p0[:ksize]
-                #update_denom = gamma[ksize:-1,0,0] + gamma[:-ksize-1,1,0]
-                #update[ksize:-ksize] = (gamma[ksize:-1,0,0] * new_p0[ksize:] + gamma[:-ksize-1,1,0] * new_p1[:-ksize])
-                p[ksize:] = update #we don't subtract one because we can't get the transition probability for the first state
+                xi = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1)) / (normalizer[1:] * denom[:-1]) #xi is the length of the number of transitions, or the length of the state sequence -1
+                update = xi / np.sum(xi, axis = 2, keepdims = True) #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+                #update[0] is updated probabilities for state 1, ... update[-1] is updated probabilities for the last state. State 0 can't be updated.
+                p[ksize:] = update[:,0,1] #we don't subtract one because we can't get the transition probability for the first state. the last ksize bases are nonoverlapping
+                #p[:ksize] = update[:ksize,1,0]/update[ksize:2*ksize,0,0]
                 #overlapping = np.zeros(len(update_last))
                 #overlapping[:ksize] = xi_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
                 #update_first = (xi_first + overlapping) / #figure this out tomorrow, this seems hard
@@ -319,6 +327,31 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             outsam.write(read)
 
 #numpy arrays are n x m, row by column; x[1,2] is 2nd row 3rd col
+def normalized_forward(A, E, pi):
+    """
+    This is a normalized forward algorithm, normalized by P(O(t)|theta).
+    This is sometimes called a filtering recursion.
+    """
+    normalizer = np.ones((E.shape[0],1,1))
+    alpha = np.zeros((E.shape[0],2,1))
+    normalizer[0] = np.sum(pi * E[0])
+    alpha[0,] = pi * E[0] / normalizer[0]
+    for t in range(1, E.shape[0]):
+        normalizer[t] = np.sum(alpha[t-1])
+        alpha[t] = (np.matmul(np.transpose(A[t]),alpha[t-1]) * E[t]) / normalizer[t]
+    return alpha, normalizer
+
+def normalized_backward(A, E, normalizer):
+    """
+    This is a normalized backward algorithm normalized by P(O(t)|theta) computed during the normalized forward algorithm.
+    It is convenient to use this normalization factor because it cancels out during gamma and xi calculation.
+    """
+    beta = np.zeros((E.shape[0],2,1))
+    beta[-1,] = np.array([[1.0],[1.0]])
+    for t in reversed(range(0,E.shape[0]-1)):
+        beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1]) / normalizer[t+1]
+    return beta
+
 def forward(A, E, pi):
     alpha = np.zeros((E.shape[0],2,1))
     alpha[0,] = pi * E[0] #pi is p(err, 1st kmer), which is not in E
