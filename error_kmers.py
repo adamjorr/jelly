@@ -282,7 +282,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             E = np.zeros((len(counts),2,1))
             pi = np.array([[p_e_given_a[counts[0]]],[1-p_e_given_a[counts[0]]]]) #probability for 1st state
             loglike = np.NINF #initialize loglike at -infinity
-            for z in range(1):
+            for z in range(2):
                 for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                     pe0 = p[j-1] #A[0] will not make any sense because of this
                     pe1 = p[j+ksize-1]
@@ -310,8 +310,8 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 xi = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1)) / denom[:-1] #xi is the length of the number of transitions, or the length of the state sequence -1
                 update = xi / np.sum(xi, axis = 2, keepdims = True) #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
                 #update[0] is updated probabilities for state 1, ... update[-1] is updated probabilities for the last state. State 0 can't be updated.
-                p[ksize:] = update[:,0,1] #we don't subtract one because we can't get the transition probability for the first state. the last ksize bases are nonoverlapping
-                #p[:ksize] = update[:ksize,1,0]/update[ksize:2*ksize,0,0]
+                p[-ksize:] = update[-ksize:,0,1] #we don't subtract one because we can't get the transition probability for the first state. the last ksize bases are nonoverlapping
+                # p[:ksize] = update[:ksize,1,0]/update[ksize:2*ksize,0,0]
                 #overlapping = np.zeros(len(update_last))
                 #overlapping[:ksize] = xi_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
                 #update_first = (xi_first + overlapping) / #figure this out tomorrow, this seems hard
