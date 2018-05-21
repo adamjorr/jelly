@@ -243,6 +243,7 @@ def count_qual_scores(samfile, ref, conf_regions, vcf):
 
 def plot_qual_scores(numerrors, numtotal, plotname):
     print(tstamp(), "Making Base Quality Score Plot . . .", file=sys.stderr)
+    numtotal[numtotal == 0] = 1 #don't divide by 0
     p = numerrors/numtotal
     y = np.arange(len(p))
     x = 10.0**(-y/10.0)
@@ -258,6 +259,7 @@ def plot_qual_scores(numerrors, numtotal, plotname):
 
 def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     print(tstamp(), "Correcting Input Reads . . .", file=sys.stderr)
+    np.seterr(all='raise')
     ksize = kgraph.ksize()
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
@@ -267,6 +269,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     p_a_given_e = ecounts/np.nansum(ecounts)
     p_a_given_note = (tcounts-ecounts) / np.nansum(tcounts-ecounts)
     
+    #fix zeros
+    p_a_given_e[p_a_given_e == 1.0] = 0.999
+    p_a_given_note[p_a_given_note == 0.0] = 0.001
+
     # print(tcounts)
     # print(perror)
     # print(denom)
@@ -293,25 +299,29 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
                 denom = np.sum(alpha * beta, axis = 1, keepdims = True) #shape = (t, 1, 1)
                 newloglike = np.sum(np.log(normalizer))
-                #print("New log likelihood:", newloglike)
-                #print("Previous log likelihood:", loglike)
                 try:
                    assert newloglike >= loglike #the new likelihood should be better than the old one
                 except AssertionError:
                    print("Previous log likelihood:", loglike)
                    print("New log likelihood:", newloglike)
-                #    #print("Previous Xi:", xi)
-                #    #print("Previous Update:", update)
                    raise
                 loglike = newloglike
                 gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error, gamma is the length of the state sequence
                 pi = gamma[0,] #update pi
-
                 xi = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1)) / denom[:-1] #xi is the length of the number of transitions, or the length of the state sequence -1
-                update = xi / np.sum(xi, axis = 2, keepdims = True) #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+                sumxi = np.sum(xi, axis = 2, keepdims = True)
+                try:
+                    update = xi / sumxi #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+                except FloatingPointError:
+                    print("Xi:", xi)
+                    print("Sum(Xi, axis = 2)", np.sum(xi, axis = 2, keepdims = True))
+                    raise
                 #update[0] is updated probabilities for state 1, ... update[-1] is updated probabilities for the last state. State 0 can't be updated.
                 p[-ksize:] = update[-ksize:,0,1] #we don't subtract one because we can't get the transition probability for the first state. the last ksize bases are nonoverlapping
-                # p[:ksize] = update[:ksize,1,0]/update[ksize:2*ksize,0,0]
+                #p[ksize:-ksize] = update[:-ksize,0,1]
+                #p[ksize:-ksize] = update[ksize:,1,0]/update[ksize:,0,0] * .5 + update[:-ksize,0,1] * .5
+                p[ksize:-ksize] = (update[ksize:,1,0]/update[ksize:,0,0] * sumxi[ksize:,1,0] + update[:-ksize,0,1] * sumxi[:-ksize,0,0])/(sumxi[ksize:,1,0] + sumxi[:-ksize,0,0])
+                p[:ksize] = update[:ksize,1,0]/update[:ksize,0,0]
                 #overlapping = np.zeros(len(update_last))
                 #overlapping[:ksize] = xi_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
                 #update_first = (xi_first + overlapping) / #figure this out tomorrow, this seems hard
