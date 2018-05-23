@@ -317,15 +317,39 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                     print("Sum(Xi, axis = 2)", np.sum(xi, axis = 2, keepdims = True))
                     raise
                 #update[0] is updated probabilities for state 1, ... update[-1] is updated probabilities for the last state. State 0 can't be updated.
-                p[-ksize:] = update[-ksize:,0,1] #we don't subtract one because we can't get the transition probability for the first state. the last ksize bases are nonoverlapping
-                #p[ksize:-ksize] = update[:-ksize,0,1]
-                #p[ksize:-ksize] = update[ksize:,1,0]/update[ksize:,0,0] * .5 + update[:-ksize,0,1] * .5
-                p[ksize:-ksize] = (update[ksize:,1,0]/update[ksize:,0,0] * sumxi[ksize:,1,0] + update[:-ksize,0,1] * sumxi[:-ksize,0,0])/(sumxi[ksize:,1,0] + sumxi[:-ksize,0,0])
-                p[:ksize] = update[:ksize,1,0]/update[:ksize,0,0]
-                #overlapping = np.zeros(len(update_last))
-                #overlapping[:ksize] = xi_last[ksize:] #get new array to update values that are base 0 and base 1 at different times
-                #update_first = (xi_first + overlapping) / #figure this out tomorrow, this seems hard
-                #p = update
+                #update beginning using e0:
+                p[:ksize] = update[:ksize,1,0]/update[:ksize,0,0] #this definitely works
+                
+                #update end using e1:
+                p[-ksize:] = update[-ksize:,0,1] #this also definitely works
+                
+                #update overlapping portion:
+                # for i in reversed(range(len(p[ksize:-ksize]))):
+                #     try:
+                #         assert p[i + 2 * ksize] < 1
+                #     except AssertionError:
+                #         print("i:",i)
+                #         print("ksize:",ksize)
+                #         print("idx:",i+2*ksize)
+                #         print("p[idx]",p[i+2*ksize])
+                #         print("len(p)",len(p))
+                #         print("p[ksize:-ksize]",p[ksize:-ksize])
+                #         raise
+                #     p[i + ksize] = update[ksize+i,1,0]/(1-p[i + 2 * ksize])
+                #p[ksize:-ksize] = (update[ksize:,1,0]/update[ksize:,0,0] * xi[ksize:,1,0] * xi[ksize:,0,0]) + update[:-ksize,0,1] * xi[:-ksize,0,1]
+                # p[ksize:-ksize] = (xi[ksize:,1,0]/update[ksize:,0,0] + xi[:-ksize,0,1])/(xi[ksize:,1,0]/update[ksize:,0,0] + xi[:-ksize,0,1])
+                
+                #p[ksize:-ksize] = np.sqrt(update[ksize:,1,0]/update[ksize:,0,0] * update[:-ksize,0,1]) #geometric mean
+                #p[ksize:-ksize] = update[ksize:,1,0]/update[ksize:,0,0] #just use e0
+                #p[ksize:-ksize] = update[:-ksize,0,1] #just use e1
+                #p[ksize:-ksize] = update[ksize:,1,0]/update[ksize:,0,0] * .5 + update[:-ksize,0,1] * .5 #use mean
+                #p[ksize:-ksize] = (update[ksize:,1,0]/update[ksize:,0,0] * sumxi[ksize:,1,0] + update[:-ksize,0,1] * sumxi[:-ksize,0,0])/(sumxi[ksize:,1,0] + sumxi[:-ksize,0,0])
+            
+            try:
+                assert np.all(p > 0) and np.all(p < 1)
+            except AssertionError:
+                print("p:",p)
+                raise
 
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
