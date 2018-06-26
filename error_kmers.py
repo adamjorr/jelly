@@ -22,6 +22,7 @@ from multiprocessing import Pool
 import scipy
 import scipy.stats
 import scipy.signal
+import scipy.optimize as op
 import os.path
 
 def get_confident_regions(bedfilename):
@@ -257,6 +258,23 @@ def plot_qual_scores(numerrors, numtotal, plotname):
     plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
     qualplot.savefig(plotname)
 
+"""
+Calculate the log likelihood of a probability vector given a new value of x and i
+"""
+def calc_loglike(x, i, A, E, pi):
+    #update A where x = pe0
+    pe0 = x
+    pe1 = A[i+1,0,1]
+    A[i+1,1,:] = [pe0 - pe0*pe1, 1-pe0+pe0*pe1]
+
+    #update A where x = pe1
+    pe0 = A[i+1+ksize,1,0] / A[i+1+ksize,0,0]
+    pe1 = x
+    A[i+1+ksize] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
+
+    _, normalizer = normalized_forward(A, E, pi)
+    return np.sum(np.log(normalizer))
+
 def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     print(tstamp(), "Correcting Input Reads . . .", file=sys.stderr)
     np.seterr(all='raise')
@@ -323,6 +341,12 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 #update end using e1:
                 p[-ksize:] = update[-ksize:,0,1] #this also definitely works
                 
+                nll = lambda x, params: -calc_loglike(x = x, *params)
+                for j, initial_est in enumerate(p[ksize:-ksize]):
+                    i = j + ksize
+                    p[i] = op.minimize(nll, initial_est, args = (i, A, E, pi), bounds = (0,1), tol = 1e-4) #tolerance is equivalent to PHRED score 40, since this is the max score
+                    p[i] = newp
+
                 #update overlapping portion:
                 # for i in reversed(range(len(p[ksize:-ksize]))):
                 #     try:
