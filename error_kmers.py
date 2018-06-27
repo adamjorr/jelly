@@ -263,11 +263,11 @@ Calculate the log likelihood of a probability vector given a new value of x and 
 """
 def calc_loglike(x, i, A, E, pi, ksize):
     #update A where x = pe0
-    # if not 0 <= x <= 1:
-    #     return -np.inf
+    if not 0 < x < 1:
+        return -np.inf
     pe0 = x
     pe1 = A[i+1,0,1]
-    A[i+1,1,:] = [pe0 - pe0*pe1, 1-pe0+pe0*pe1]
+    A[i+1] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
 
     #update A where x = pe1
     pe0 = A[i+1-ksize,1,0] / A[i+1-ksize,0,0]
@@ -312,14 +312,21 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                     pe0 = p[j-1] #A[0] will not make any sense because of this
                     pe1 = p[j+ksize-1]
-                    assert 0 <= pe0 <= 1
-                    assert 0 <= pe1 <= 1
+                    try:
+                        assert 0.0 < pe0 < 1.0
+                        assert 0.0 < pe1 < 1.0
+                    except AssertionError:
+                        print(z)
+                        print("pe0:",pe0)
+                        print("pe1:",pe1)
+                        print("p:",p)
+                        raise
                     A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]]) #A is size len(counts), but A[0] is meaningless
                     E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]]) #E is size len(counts)
 
                 alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
                 beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
-                denom = np.sum(alpha * beta, axis = 1, keepdims = True) #shape = (t, 1, 1)
+                # denom = np.sum(alpha * beta, axis = 1, keepdims = True) #shape = (t, 1, 1)
                 newloglike = np.sum(np.log(normalizer))
                 try:
                    assert newloglike >= loglike #the new likelihood should be better than the old one
@@ -328,16 +335,24 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                    print("New log likelihood:", newloglike)
                    raise
                 loglike = newloglike
-                gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error, gamma is the length of the state sequence
-                pi = gamma[0,] #update pi
-                xi = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1)) / denom[:-1] #xi is the length of the number of transitions, or the length of the state sequence -1
-                sumxi = np.sum(xi, axis = 2, keepdims = True)
+                xi_num = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1))
+                gamma = np.sum(xi_num, axis = 2, keepdims = True)
+                pi = gamma[0,]
+
                 try:
-                    update = xi / sumxi #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+                    update = xi_num / gamma #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
                 except FloatingPointError:
-                    print("Xi:", xi)
-                    print("Sum(Xi, axis = 2)", np.sum(xi, axis = 2, keepdims = True))
+                    print("z:",z)
+                    # print("Xi:", xi)
+                    print("Xi_num:", xi_num)
+                    print("gamma:",gamma)
+                    # print("Sum(Xi, axis = 2)", np.sum(xi, axis = 2, keepdims = True))
                     raise
+
+                # gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error, gamma is the length of the state sequence
+                # xi = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1)) / denom[:-1] #xi is the length of the number of transitions, or the length of the state sequence -1
+                # sumxi = np.sum(xi, axis = 2, keepdims = True)
+                
                 #update[0] is updated probabilities for state 1, ... update[-1] is updated probabilities for the last state. State 0 can't be updated.
                 #update beginning using e0:
                 p[:ksize] = update[:ksize,1,0]/update[:ksize,0,0] #this definitely works
@@ -345,11 +360,12 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 #update end using e1:
                 p[-ksize:] = update[-ksize:,0,1] #this also definitely works
                 
+                #optimization
                 nll = lambda x, i, A, E, pi, ksize: -calc_loglike(x[0], i, np.array(A, copy = True), E, pi, ksize) #use a copy of A to avoid changing A.
                 for j, initial_est in enumerate(p[ksize:-ksize]):
-                    i = j + ksize
-                    optim_result = op.minimize(nll, [initial_est], args = (i, A, E, pi, ksize), bounds = [(0.0,1.0)], tol = 1e-4) #tolerance is equivalent to PHRED score 40, since this is the max score
-                    p[i] = optim_result.x[0]
+                   i = j + ksize
+                   optim_result = op.minimize(nll, [initial_est], args = (i, np.array(A, copy = True), E, pi, ksize), bounds = [(0.0,1.0)], tol = 1e-4) #tolerance is equivalent to PHRED score 40, since this is the max score
+                   p[i] = optim_result.x[0]
 
                 #update overlapping portion:
                 # for i in reversed(range(len(p[ksize:-ksize]))):
