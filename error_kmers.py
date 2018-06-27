@@ -261,16 +261,18 @@ def plot_qual_scores(numerrors, numtotal, plotname):
 """
 Calculate the log likelihood of a probability vector given a new value of x and i
 """
-def calc_loglike(x, i, A, E, pi):
+def calc_loglike(x, i, A, E, pi, ksize):
     #update A where x = pe0
+    # if not 0 <= x <= 1:
+    #     return -np.inf
     pe0 = x
     pe1 = A[i+1,0,1]
     A[i+1,1,:] = [pe0 - pe0*pe1, 1-pe0+pe0*pe1]
 
     #update A where x = pe1
-    pe0 = A[i+1+ksize,1,0] / A[i+1+ksize,0,0]
+    pe0 = A[i+1-ksize,1,0] / A[i+1-ksize,0,0]
     pe1 = x
-    A[i+1+ksize] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
+    A[i+1-ksize] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]])
 
     _, normalizer = normalized_forward(A, E, pi)
     return np.sum(np.log(normalizer))
@@ -310,6 +312,8 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                     pe0 = p[j-1] #A[0] will not make any sense because of this
                     pe1 = p[j+ksize-1]
+                    assert 0 <= pe0 <= 1
+                    assert 0 <= pe1 <= 1
                     A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]]) #A is size len(counts), but A[0] is meaningless
                     E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]]) #E is size len(counts)
 
@@ -341,11 +345,11 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 #update end using e1:
                 p[-ksize:] = update[-ksize:,0,1] #this also definitely works
                 
-                nll = lambda x, params: -calc_loglike(x = x, *params)
+                nll = lambda x, i, A, E, pi, ksize: -calc_loglike(x[0], i, np.array(A, copy = True), E, pi, ksize) #use a copy of A to avoid changing A.
                 for j, initial_est in enumerate(p[ksize:-ksize]):
                     i = j + ksize
-                    p[i] = op.minimize(nll, initial_est, args = (i, A, E, pi), bounds = (0,1), tol = 1e-4) #tolerance is equivalent to PHRED score 40, since this is the max score
-                    p[i] = newp
+                    optim_result = op.minimize(nll, [initial_est], args = (i, A, E, pi, ksize), bounds = [(0.0,1.0)], tol = 1e-4) #tolerance is equivalent to PHRED score 40, since this is the max score
+                    p[i] = optim_result.x[0]
 
                 #update overlapping portion:
                 # for i in reversed(range(len(p[ksize:-ksize]))):
