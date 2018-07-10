@@ -304,10 +304,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             quals = np.array(read.query_qualities, dtype=np.int)
             
             #log10p = np.array(-quals/10.0)
-            p = np.array(10.0**(-quals/10.0))
-            A = np.zeros((len(counts),2,2))
-            E = np.zeros((len(counts),2,1))
-            pi = np.array([[p_e_given_a[counts[0]]],[1.0-p_e_given_a[counts[0]]]]) #probability for 1st state
+            p = np.array(10.0**(-quals/10.0), dtype=np.longlong)
+            A = np.zeros((len(counts),2,2), dtype=np.longlong)
+            E = np.zeros((len(counts),2,1), dtype=np.longlong)
+            pi = np.array([[p_e_given_a[counts[0]]],[1.0-p_e_given_a[counts[0]]]], dtype=np.longlong) #probability for 1st state
             for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                 pe0 = p[j-1] #A[0] will not make any sense because of this
                 pe1 = p[j+ksize-1]
