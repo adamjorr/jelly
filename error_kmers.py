@@ -285,9 +285,9 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     
     pa = tcounts/np.nansum(tcounts)
     ecounts = tcounts * perror
-    p_e_given_a = np.array(ecounts/tcounts, dtype = np.longlong)
-    p_a_given_e = np.array(ecounts/np.nansum(ecounts), dtype = np.longlong)
-    p_a_given_note = np.array((tcounts-ecounts) / np.nansum(tcounts-ecounts), dtype = np.longlong)
+    p_e_given_a = np.array(ecounts/tcounts, dtype = np.longdouble)
+    p_a_given_e = np.array(ecounts/np.nansum(ecounts), dtype = np.longdouble)
+    p_a_given_note = np.array((tcounts-ecounts) / np.nansum(tcounts-ecounts), dtype = np.longdouble)
     
     #fix zeros
     p_a_given_e[p_a_given_e == 1.0] = 0.999
@@ -304,10 +304,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             quals = np.array(read.query_qualities, dtype=np.int)
             
             #log10p = np.array(-quals/10.0)
-            p = np.array(10.0**(-quals/10.0), dtype=np.longlong)
-            A = np.zeros((len(counts),2,2), dtype=np.longlong)
-            E = np.zeros((len(counts),2,1), dtype=np.longlong)
-            pi = np.array([[p_e_given_a[counts[0]]],[1.0-p_e_given_a[counts[0]]]], dtype=np.longlong) #probability for 1st state
+            p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
+            A = np.zeros((len(counts),2,2), dtype=np.longdouble)
+            E = np.zeros((len(counts),2,1), dtype=np.longdouble)
+            pi = np.array([[p_e_given_a[counts[0]]],[1.0-p_e_given_a[counts[0]]]], dtype=np.longdouble) #probability for 1st state
             for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                 pe0 = p[j-1] #A[0] will not make any sense because of this
                 pe1 = p[j+ksize-1]
@@ -320,10 +320,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                     print("pe1:",pe1)
                     print("p:",p)
                     raise
-                A[j] = np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longlong, copy = True) #A is size len(counts), but A[0] is meaningless
-                E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longlong, copy = True) #E is size len(counts)
+                A[j] = np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longdouble, copy = True) #A is size len(counts), but A[0] is meaningless
+                E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longdouble, copy = True) #E is size len(counts)
 
-            A = np.array(t_baum_welch(A, E, pi), dtype = np.longlong)
+            A = np.array(t_baum_welch(A, E, pi), dtype = np.longdouble)
             for j, count in enumerate(counts):
                 pe1 = A[j,0,1]
                 pe0 = A[j,1,0] / (1.0 - pe1)
@@ -387,7 +387,7 @@ def t_baum_welch(A, E, pi):
 
         #make sure we don't underflow
         try:
-            xi = np.array(xi_num / xi_denom, dtype = np.longlong) #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+            xi = np.array(xi_num / xi_denom, dtype = np.longdouble) #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
         except FloatingPointError:
             print("Xi_num:", xi_num)
             print("Xi_denom:",xi_denom)
@@ -412,8 +412,8 @@ def normalized_forward(A, E, pi):
     This is a normalized forward algorithm, normalized by P(O(t)|theta).
     This is sometimes called a filtering recursion.
     """
-    normalizer = np.ones((E.shape[0],1,1), dtype = np.longlong)
-    alpha = np.zeros((E.shape[0],2,1), dtype = np.longlong)
+    normalizer = np.ones((E.shape[0],1,1), dtype = np.longdouble)
+    alpha = np.zeros((E.shape[0],2,1), dtype = np.longdouble)
     normalizer[0] = np.sum(pi * E[0])
     try:
         alpha[0,] = pi * E[0] / normalizer[0]
@@ -432,21 +432,21 @@ def normalized_backward(A, E, normalizer):
     This is a normalized backward algorithm normalized by P(O(t)|theta) computed during the normalized forward algorithm.
     It is convenient to use this normalization factor because it cancels out during gamma and xi calculation.
     """
-    beta = np.zeros((E.shape[0],2,1), dtype = np.longlong)
+    beta = np.zeros((E.shape[0],2,1), dtype = np.longdouble)
     beta[-1,] = np.array([[1.0],[1.0]])/normalizer[-1]
     for t in reversed(range(0,E.shape[0]-1)):
         beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1]) / normalizer[t]
     return beta
 
 def forward(A, E, pi):
-    alpha = np.zeros((E.shape[0],2,1), dtype = np.longlong)
+    alpha = np.zeros((E.shape[0],2,1), dtype = np.longdouble)
     alpha[0,] = pi * E[0] #pi is p(err, 1st kmer), which is not in E
     for t in range(1, E.shape[0]): #the first element of the shape is the number of 2 x 1 matrices we have
         alpha[t] = np.matmul(np.transpose(A[t]),alpha[t-1]) * E[t]
     return alpha #alpha is the number of transitions + 1, = to the number of states
 
 def backward(A, E):
-    beta = np.zeros((E.shape[0],2,1), dtype = np.longlong)
+    beta = np.zeros((E.shape[0],2,1), dtype = np.longdouble)
     beta[-1,] = np.array([[1],[1]])
     for t in reversed(range(0,E.shape[0]-1)):
         beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1])
