@@ -411,8 +411,8 @@ def normalized_forward(A, E, pi):
     This is a normalized forward algorithm, normalized by P(O(t)|theta).
     This is sometimes called a filtering recursion.
     """
-    normalizer = np.ones((E.shape[0],1,1))
-    alpha = np.zeros((E.shape[0],2,1))
+    normalizer = np.ones((E.shape[0],1,1), dtype = np.longlong)
+    alpha = np.zeros((E.shape[0],2,1), dtype = np.longlong)
     normalizer[0] = np.sum(pi * E[0])
     alpha[0,] = pi * E[0] / normalizer[0]
     for t in range(1, E.shape[0]):
@@ -426,21 +426,21 @@ def normalized_backward(A, E, normalizer):
     This is a normalized backward algorithm normalized by P(O(t)|theta) computed during the normalized forward algorithm.
     It is convenient to use this normalization factor because it cancels out during gamma and xi calculation.
     """
-    beta = np.zeros((E.shape[0],2,1))
+    beta = np.zeros((E.shape[0],2,1), dtype = np.longlong)
     beta[-1,] = np.array([[1.0],[1.0]])/normalizer[-1]
     for t in reversed(range(0,E.shape[0]-1)):
         beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1]) / normalizer[t]
     return beta
 
 def forward(A, E, pi):
-    alpha = np.zeros((E.shape[0],2,1))
+    alpha = np.zeros((E.shape[0],2,1), dtype = np.longlong)
     alpha[0,] = pi * E[0] #pi is p(err, 1st kmer), which is not in E
     for t in range(1, E.shape[0]): #the first element of the shape is the number of 2 x 1 matrices we have
         alpha[t] = np.matmul(np.transpose(A[t]),alpha[t-1]) * E[t]
     return alpha #alpha is the number of transitions + 1, = to the number of states
 
 def backward(A, E):
-    beta = np.zeros((E.shape[0],2,1))
+    beta = np.zeros((E.shape[0],2,1), dtype = np.longlong)
     beta[-1,] = np.array([[1],[1]])
     for t in reversed(range(0,E.shape[0]-1)):
         beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1])
