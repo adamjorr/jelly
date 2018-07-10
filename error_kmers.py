@@ -365,7 +365,7 @@ def t_baum_welch(A, E, pi):
     Return new A
     """
     loglike = np.NINF
-    likelihood_delta = np.INF
+    likelihood_delta = np.inf
     while (likelihood_delta < 1e-3):
         alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
         beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
