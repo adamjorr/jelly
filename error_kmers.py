@@ -303,25 +303,26 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             counts = np.array(list(map(kgraph.get, kmers)), dtype = np.int)
             quals = np.array(read.query_qualities, dtype=np.int)
             
-            p = 10.0**(-quals/10.0)
+            #log10p = np.array(-quals/10.0)
+            p = np.array(10.0**(-quals/10.0))
             A = np.zeros((len(counts),2,2))
             E = np.zeros((len(counts),2,1))
             pi = np.array([[p_e_given_a[counts[0]]],[1-p_e_given_a[counts[0]]]]) #probability for 1st state
             loglike = np.NINF #initialize loglike at -infinity
-            for z in range(2):
+            for z in range(6):
                 for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                     pe0 = p[j-1] #A[0] will not make any sense because of this
                     pe1 = p[j+ksize-1]
                     try:
-                        assert 0.0 < pe0 < 1.0
-                        assert 0.0 < pe1 < 1.0
+                        assert 0.0 <= pe0 <= 1.0
+                        assert 0.0 <= pe1 <= 1.0
                     except AssertionError:
                         print(z)
                         print("pe0:",pe0)
                         print("pe1:",pe1)
                         print("p:",p)
                         raise
-                    A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1-pe0+pe0*pe1]]) #A is size len(counts), but A[0] is meaningless
+                    A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1 - pe0+pe0*pe1]]) #A is size len(counts), but A[0] is meaningless
                     E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]]) #E is size len(counts)
 
                 alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
@@ -336,17 +337,26 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                    raise
                 loglike = newloglike
                 xi_num = alpha[:-1,] * A[1:,] * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1))
-                gamma = np.sum(xi_num, axis = 2, keepdims = True)
-                pi = gamma[0,]
+                xi_denom = np.sum(xi_num, axis = (1,2), keepdims = True)
 
                 try:
-                    update = xi_num / gamma #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+                    xi = xi_num / xi_denom #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
                 except FloatingPointError:
                     print("z:",z)
                     # print("Xi:", xi)
                     print("Xi_num:", xi_num)
-                    print("gamma:",gamma)
+                    print("Xi_denom:",xi_denom)
                     # print("Sum(Xi, axis = 2)", np.sum(xi, axis = 2, keepdims = True))
+                    raise
+
+                gamma = np.sum(xi, axis = 2, keepdims = True)
+                pi = gamma[0,]
+                update = xi / gamma
+                try:
+                    assert np.all(update >= 0.0) and np.all(update <= 1.0)
+                except AssertionError:
+                    print("xi:", xi)
+                    print("gamma:", gamma)
                     raise
 
                 # gamma = alpha * beta / denom #gamma[0] = nonerror, gamma[1] = error, gamma is the length of the state sequence
@@ -355,17 +365,36 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 
                 #update[0] is updated probabilities for state 1, ... update[-1] is updated probabilities for the last state. State 0 can't be updated.
                 #update beginning using e0:
-                p[:ksize] = update[:ksize,1,0]/update[:ksize,0,0] #this definitely works
+                #p[:ksize] = update[:ksize,1,0]/update[:ksize,0,0] #this definitely works
                 
                 #update end using e1:
-                p[-ksize:] = update[-ksize:,0,1] #this also definitely works
+                #p[-ksize:] = update[-ksize:,0,1] #this also definitely works
+
+                #update_pe0 = np.array(update[:,1,0] / update[:,0,0], dtype=np.longdouble)
+                update_pe1 = np.array(update[:,0,1])
                 
+                #try:
+                #    assert np.all(update_pe0 >= 0.0) and np.all(update_pe0 <= 1.0)
+                #except AssertionError:
+                #    print("update_pe0:", update_pe0)
+                #    print("offender:", update_pe0[update_pe0 > 1.0])
+                #    raise
+
+                try:
+                    assert np.all(update_pe1 >= 0.0) and np.all(update_pe1 <= 1.0)
+                except AssertionError:
+                    print("update_pe1:", update_pe1)
+                    raise
+                
+                #p[:ksize] = update_pe0[:ksize]
+                p[-ksize:] = update_pe1[-ksize:]
+
                 #optimization
-                nll = lambda x, i, A, E, pi, ksize: -calc_loglike(x[0], i, np.array(A, copy = True), E, pi, ksize) #use a copy of A to avoid changing A.
-                for j, initial_est in enumerate(p[ksize:-ksize]):
-                   i = j + ksize
-                   optim_result = op.minimize(nll, [initial_est], args = (i, np.array(A, copy = True), E, pi, ksize), bounds = [(0.0,1.0)], tol = 1e-4) #tolerance is equivalent to PHRED score 40, since this is the max score
-                   p[i] = optim_result.x[0]
+                #nll = lambda x, i, A, E, pi, ksize: -calc_loglike(x[0], i, np.array(A, copy = True), E, pi, ksize) #use a copy of A to avoid changing A.
+                #for j, initial_est in enumerate(p[ksize:-ksize]):
+                #   i = j + ksize
+                #   optim_result = op.minimize(nll, [initial_est], args = (i, np.array(A, copy = True), E, pi, ksize), bounds = [(0.0,1.0)], tol = 1e-4) #tolerance is equivalent to PHRED score 40, since this is the max score
+                #   p[i] = optim_result.x[0]
 
                 #update overlapping portion:
                 # for i in reversed(range(len(p[ksize:-ksize]))):
@@ -388,11 +417,15 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 #p[ksize:-ksize] = update[:-ksize,0,1] #just use e1
                 #p[ksize:-ksize] = update[ksize:,1,0]/update[ksize:,0,0] * .5 + update[:-ksize,0,1] * .5 #use mean
                 #p[ksize:-ksize] = (update[ksize:,1,0]/update[ksize:,0,0] * sumxi[ksize:,1,0] + update[:-ksize,0,1] * sumxi[:-ksize,0,0])/(sumxi[ksize:,1,0] + sumxi[:-ksize,0,0])
-            
+                #this seems pretty good
+                #p[ksize:-ksize] = (xi[ksize:,1,0] + xi[:-ksize,0,1]) / (gamma[ksize:,1,0] + gamma[:-ksize,0,0]) #this seems pretty close? to working
+            #p = np.clip(p, 0.0, 1.0)
             try:
-                assert np.all(p > 0) and np.all(p < 1)
+                assert np.all(p >= 0.0) and np.all(p <= 1.0)
             except AssertionError:
                 print("p:",p)
+                print("p[p < 0.0]",p[p < 0.0])
+                print("p[p > 1.0]",p[p > 1.0])
                 raise
 
             q = -10.0*np.log10(p)
@@ -401,6 +434,8 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             read.query_qualities = quals
             
             outsam.write(read)
+
+def t_baum_welch(A, E):
 
 #numpy arrays are n x m, row by column; x[1,2] is 2nd row 3rd col
 def normalized_forward(A, E, pi):
