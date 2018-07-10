@@ -285,9 +285,9 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     
     pa = tcounts/np.nansum(tcounts)
     ecounts = tcounts * perror
-    p_e_given_a = ecounts/tcounts
-    p_a_given_e = ecounts/np.nansum(ecounts)
-    p_a_given_note = (tcounts-ecounts) / np.nansum(tcounts-ecounts)
+    p_e_given_a = np.array(ecounts/tcounts, dtype = np.longlong)
+    p_a_given_e = np.array(ecounts/np.nansum(ecounts), dtype = np.longlong)
+    p_a_given_note = np.array((tcounts-ecounts) / np.nansum(tcounts-ecounts), dtype = np.longlong)
     
     #fix zeros
     p_a_given_e[p_a_given_e == 1.0] = 0.999
