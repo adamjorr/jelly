@@ -320,10 +320,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                     print("pe1:",pe1)
                     print("p:",p)
                     raise
-                A[j] = np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longlong) #A is size len(counts), but A[0] is meaningless
-                E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longlong) #E is size len(counts)
+                A[j] = np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longlong, copy = True) #A is size len(counts), but A[0] is meaningless
+                E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longlong, copy = True) #E is size len(counts)
 
-            A = np.array(t_baum_welch(A, E, pi))
+            A = np.array(t_baum_welch(A, E, pi), dtype = np.longlong)
             for j, count in enumerate(counts):
                 pe1 = A[j,0,1]
                 pe0 = A[j,1,0] / (1.0 - pe1)
@@ -367,6 +367,7 @@ def t_baum_welch(A, E, pi):
     loglike = np.NINF
     likelihood_delta = np.inf
     while (likelihood_delta > 1e-3):
+        print("an iteration")
         alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
         beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
         newloglike = np.sum(np.log(normalizer))
@@ -386,7 +387,7 @@ def t_baum_welch(A, E, pi):
 
         #make sure we don't underflow
         try:
-            xi = xi_num / xi_denom #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+            xi = np.array(xi_num / xi_denom, dtype = np.longlong) #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
         except FloatingPointError:
             print("Xi_num:", xi_num)
             print("Xi_denom:",xi_denom)
@@ -417,7 +418,7 @@ def normalized_forward(A, E, pi):
     try:
         alpha[0,] = pi * E[0] / normalizer[0]
     except FloatingPointError:
-        print("alpha:",alpha)
+        print("alpha[0,]:",alpha[0,])
         print("E[0]:",E[0])
         print("normalizer[0]",normalizer[0])
     for t in range(1, E.shape[0]):
