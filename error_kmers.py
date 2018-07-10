@@ -414,7 +414,12 @@ def normalized_forward(A, E, pi):
     normalizer = np.ones((E.shape[0],1,1), dtype = np.longlong)
     alpha = np.zeros((E.shape[0],2,1), dtype = np.longlong)
     normalizer[0] = np.sum(pi * E[0])
-    alpha[0,] = pi * E[0] / normalizer[0]
+    try:
+        alpha[0,] = pi * E[0] / normalizer[0]
+    except FloatingPointError:
+        print("alpha:",alpha)
+        print("E[0]:",E[0])
+        print("normalizer[0]",normalizer[0])
     for t in range(1, E.shape[0]):
         unscaled_alpha = np.matmul(np.transpose(A[t]),alpha[t-1]) * E[t]
         normalizer[t] = np.sum(unscaled_alpha)
