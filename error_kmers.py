@@ -307,7 +307,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             p = np.array(10.0**(-quals/10.0))
             A = np.zeros((len(counts),2,2))
             E = np.zeros((len(counts),2,1))
-            pi = np.array([[p_e_given_a[counts[0]]],[1-p_e_given_a[counts[0]]]]) #probability for 1st state
+            pi = np.array([[p_e_given_a[counts[0]]],[1.0-p_e_given_a[counts[0]]]]) #probability for 1st state
             for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
                 pe0 = p[j-1] #A[0] will not make any sense because of this
                 pe1 = p[j+ksize-1]
@@ -320,13 +320,13 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                     print("pe1:",pe1)
                     print("p:",p)
                     raise
-                A[j] = np.array([[1 - pe1, pe1],[pe0 - pe0*pe1, 1 - pe0+pe0*pe1]]) #A is size len(counts), but A[0] is meaningless
+                A[j] = np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]]) #A is size len(counts), but A[0] is meaningless
                 E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]]) #E is size len(counts)
 
             A = np.array(t_baum_welch(A, E, pi))
             for j, count in enumerate(counts):
                 pe1 = A[j,0,1]
-                pe0 = A[j,1,0] / (1 - pe1)
+                pe0 = A[j,1,0] / (1.0 - pe1)
 
                 p[j-1] = pe0
                 p[j + ksize - 1] = pe1
