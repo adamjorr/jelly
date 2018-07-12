@@ -360,6 +360,77 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             
             outsam.write(read)
 
+def baum_welch(A, E, pi):
+    """
+    Return new A
+    """
+    loglike = np.NINF
+    likelihood_delta = np.inf
+    while (likelihood_delta > .1):
+        alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
+        beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
+        newloglike = np.sum(np.log(normalizer))
+
+        #the new likelihood should be better than the old one
+        try:
+           assert newloglike >= loglike
+        except AssertionError:
+           print("Previous log likelihood:", loglike)
+           print("New log likelihood:", newloglike)
+           raise
+        likelihood_delta = newloglike - loglike
+        loglike = newloglike
+
+        xi_num = alpha[:-1,] * A * np.transpose(beta[1:,],(0,2,1)) * np.transpose(E[1:,],(0,2,1))
+        xi_denom = np.sum(xi_num, axis = (1,2), keepdims = True)
+
+        #make sure we don't underflow
+        try:
+            xi = np.array(xi_num / xi_denom, dtype = np.longdouble) #p(state t = i and state t+1 = j | Obs, parameters); it makes sense from t=0 to length of the state sequence - 1
+        except FloatingPointError:
+            print("Xi_num:", xi_num)
+            print("Xi_denom:",xi_denom)
+            raise
+
+        gamma = np.sum(xi, axis = 2, keepdims = True)
+        pi = gamma[0,]
+        update = np.sum(xi, axis = 0) / np.sum(gamma, axis = 0)
+        try:
+            assert np.all(update >= 0.0) and np.all(update <= 1.0)
+        except AssertionError:
+            print("xi:", xi)
+            print("gamma:", gamma)
+            raise
+        A = np.array(update, copy = True)
+    return A
+
+
+def normalized_forward(A, E, pi):
+    """
+    This is a normalized forward algorithm, normalized by P(O(t)|theta).
+    This is sometimes called a filtering recursion.
+    """
+    normalizer = np.ones((E.shape[0],1,1), dtype = np.longdouble)
+    alpha = np.zeros((E.shape[0],2,1), dtype = np.longdouble)
+    normalizer[0] = np.sum(pi * E[0])
+    alpha[0,] = pi * E[0] / normalizer[0]
+    for t in range(1, E.shape[0]):
+        unscaled_alpha = np.matmul(np.transpose(A),alpha[t-1]) * E[t]
+        normalizer[t] = np.sum(unscaled_alpha)
+        alpha[t] = unscaled_alpha / normalizer[t]
+    return alpha, normalizer
+
+def normalized_backward(A, E, normalizer):
+    """
+    This is a normalized backward algorithm normalized by P(O(t)|theta) computed during the normalized forward algorithm.
+    It is convenient to use this normalization factor because it cancels out during gamma and xi calculation.
+    """
+    beta = np.zeros((E.shape[0],2,1), dtype = np.longdouble)
+    beta[-1,] = np.array([[1.0],[1.0]])/normalizer[-1]
+    for t in reversed(range(0,E.shape[0]-1)):
+        beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1]) / normalizer[t]
+    return beta
+
 def t_baum_welch(A, E, pi):
     """
     Return new A
@@ -404,9 +475,8 @@ def t_baum_welch(A, E, pi):
         A[1:,] = np.array(update, copy = True)
     return A
 
-
 #numpy arrays are n x m, row by column; x[1,2] is 2nd row 3rd col
-def normalized_forward(A, E, pi):
+def t_normalized_forward(A, E, pi):
     """
     This is a normalized forward algorithm, normalized by P(O(t)|theta).
     This is sometimes called a filtering recursion.
@@ -426,7 +496,7 @@ def normalized_forward(A, E, pi):
         alpha[t] = unscaled_alpha / normalizer[t]
     return alpha, normalizer
 
-def normalized_backward(A, E, normalizer):
+def t_normalized_backward(A, E, normalizer):
     """
     This is a normalized backward algorithm normalized by P(O(t)|theta) computed during the normalized forward algorithm.
     It is convenient to use this normalization factor because it cancels out during gamma and xi calculation.
