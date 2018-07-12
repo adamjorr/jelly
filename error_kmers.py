@@ -326,9 +326,9 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             A = np.array(baum_welch(A, E, pi), dtype = np.longdouble)
             for j, count in enumerate(counts):
                 pe1 = A[0,1]
-                pe0 = A[1,0] / (1.0 - pe1)
+                # pe0 = A[1,0] / (1.0 - pe1)
 
-                p[j-1] = pe0
+                # p[j-1] = pe0
                 p[j + ksize - 1] = pe1
 
                 #update_pe1 = np.array(update[:,0,1]) #this looks like it works
