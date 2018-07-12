@@ -428,7 +428,7 @@ def normalized_backward(A, E, normalizer):
     beta = np.zeros((E.shape[0],2,1), dtype = np.longdouble)
     beta[-1,] = np.array([[1.0],[1.0]])/normalizer[-1]
     for t in reversed(range(0,E.shape[0]-1)):
-        beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1]) / normalizer[t]
+        beta[t] = np.matmul(A,E[t+1] * beta[t+1]) / normalizer[t]
     return beta
 
 def t_baum_welch(A, E, pi):
