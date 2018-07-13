@@ -324,10 +324,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longdouble, copy = True) #E is size len(counts)
             A = A / len(counts)
             A, xi = baum_welch(A, E, pi)
-            for j, count in enumerate(counts):
+            p[ksize:] = xi[:,0,1]
+            # for j, count in enumerate(counts):
                 # pe1 = A[0,1]
-                pe1 = xi[j,0,1]
-                p[j + ksize - 1] = pe1
+                # p[j + ksize - 1] = pe1
 
                 #update_pe1 = np.array(update[:,0,1]) #this looks like it works
                                 
