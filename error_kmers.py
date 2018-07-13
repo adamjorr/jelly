@@ -290,8 +290,8 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
     p_a_given_note = np.array((tcounts-ecounts) / np.nansum(tcounts-ecounts), dtype = np.longdouble)
     
     #fix zeros
-    p_a_given_e[p_a_given_e == 1.0] = 0.999
-    p_a_given_note[p_a_given_note == 0.0] = 0.001
+    p_a_given_e[p_a_given_e == 1.0] = 0.9999
+    p_a_given_note[p_a_given_note == 0.0] = 0.0001
 
     # print(tcounts)
     # print(perror)
@@ -323,12 +323,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 A += np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longdouble, copy = True) #A is size len(counts), but A[0] is meaningless
                 E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longdouble, copy = True) #E is size len(counts)
             A = A / len(counts)
-            A = np.array(baum_welch(A, E, pi), dtype = np.longdouble)
+            A, xi = np.array(baum_welch(A, E, pi), dtype = np.longdouble)
             for j, count in enumerate(counts):
-                pe1 = A[0,1]
-                # pe0 = A[1,0] / (1.0 - pe1)
-
-                # p[j-1] = pe0
+                # pe1 = A[0,1]
+                pe1 = xi[j,0,1]
                 p[j + ksize - 1] = pe1
 
                 #update_pe1 = np.array(update[:,0,1]) #this looks like it works
@@ -402,7 +400,7 @@ def baum_welch(A, E, pi):
             print("gamma:", gamma)
             raise
         A = np.array(update, copy = True)
-    return A
+    return A, xi
 
 
 def normalized_forward(A, E, pi):
