@@ -323,7 +323,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 A += np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longdouble, copy = True) #A is size len(counts), but A[0] is meaningless
                 E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longdouble, copy = True) #E is size len(counts)
             A = A / len(counts)
-            A, xi = np.array(baum_welch(A, E, pi), dtype = np.longdouble)
+            A, xi = baum_welch(A, E, pi)
             for j, count in enumerate(counts):
                 # pe1 = A[0,1]
                 pe1 = xi[j,0,1]
