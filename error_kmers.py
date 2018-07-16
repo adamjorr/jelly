@@ -246,13 +246,16 @@ def plot_qual_scores(numerrors, numtotal, plotname):
     print(tstamp(), "Making Base Quality Score Plot . . .", file=sys.stderr)
     numtotal[numtotal == 0] = 1 #don't divide by 0
     p = numerrors/numtotal
-    y = np.arange(len(p))
-    x = 10.0**(-y/10.0)
+    q = -10.0*np.log10(p)
+    q = np.array(np.rint(q), dtype=np.int)
+    q = np.clip(q, 0, 40)
+    x = np.arange(len(p))
+    # x = 10.0**(-y/10.0)
     
     sns.set()
     qualplot = plt.figure()
     plt.plot(x,x)
-    plt.plot(x,p)
+    plt.plot(x,q)
     plt.xlabel("Predicted Probability of Error")
     plt.ylabel("Empirical Probability of Error")
     plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
@@ -367,7 +370,7 @@ def baum_welch(A, E, pi):
     """
     loglike = np.NINF
     likelihood_delta = np.inf
-    while (likelihood_delta > .001):
+    while (likelihood_delta > .1):
         alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
         beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
         newloglike = np.sum(np.log(normalizer))
