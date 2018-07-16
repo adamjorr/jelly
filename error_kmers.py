@@ -324,13 +324,16 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longdouble, copy = True) #E is size len(counts)
             A = A / len(counts)
             A, xi = baum_welch(A, E, pi)
-            p[ksize:] = xi[:,0,1]
+            #p[ksize:] = xi[:,0,1]
+            #p[:ksize] = xi[:ksize,1,0] / xi[:ksize,0,0]
+            p[ksize:] = A[0,1]
+            # error -> nonerror = pe0 and (1-pe1)
+            #
             # for j, count in enumerate(counts):
                 # pe1 = A[0,1]
                 # p[j + ksize - 1] = pe1
 
                 #update_pe1 = np.array(update[:,0,1]) #this looks like it works
-                                
                 #p[:ksize] = update_pe0[:ksize]
                 #p[-ksize:] = update_pe1[-ksize:]
 
@@ -364,7 +367,7 @@ def baum_welch(A, E, pi):
     """
     loglike = np.NINF
     likelihood_delta = np.inf
-    while (likelihood_delta > .1):
+    while (likelihood_delta > .001):
         alpha, normalizer = normalized_forward(A, E, pi) #shape = (t,2,1) and (t,1,1)
         beta = normalized_backward(A, E, normalizer) #shape = (t,2,1)
         newloglike = np.sum(np.log(normalizer))
