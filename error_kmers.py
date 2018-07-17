@@ -246,6 +246,7 @@ def plot_qual_scores(numerrors, numtotal, plotname):
     print(tstamp(), "Making Base Quality Score Plot . . .", file=sys.stderr)
     numtotal[numtotal == 0] = 1 #don't divide by 0
     p = numerrors/numtotal
+    p[p == 0] = 1e-4 #1e-4 is the largest quality score, 40
     q = -10.0*np.log10(p)
     q = np.array(np.rint(q), dtype=np.int)
     q = np.clip(q, 0, 40)
