@@ -257,8 +257,8 @@ def plot_qual_scores(numerrors, numtotal, plotname):
     qualplot = plt.figure()
     plt.plot(x,x)
     plt.plot(x,q)
-    plt.xlabel("Predicted Probability of Error")
-    plt.ylabel("Empirical Probability of Error")
+    plt.xlabel("Predicted Quality Score")
+    plt.ylabel("Actual Quality Score")
     plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
     qualplot.savefig(plotname)
 
