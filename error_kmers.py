@@ -242,8 +242,9 @@ def count_qual_scores(samfile, ref, conf_regions, vcf):
             np.add.at(numerrors,quals[errorpositions],1)
     return numerrors, numtotal
 
-def plot_qual_scores(numerrors, numtotal, plotname):
+def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     print(tstamp(), "Making Base Quality Score Plot . . .", file=sys.stderr)
+    plottitle = (plottitle if plottitle is not None else plotname)
     numtotal[numtotal == 0] = 1 #don't divide by 0
     p = numerrors/numtotal
     p[p == 0] = 1e-4 #1e-4 is the largest quality score, 40
@@ -251,15 +252,19 @@ def plot_qual_scores(numerrors, numtotal, plotname):
     q = np.array(np.rint(q), dtype=np.int)
     q = np.clip(q, 0, 40)
     x = np.arange(len(p))
-    # x = 10.0**(-y/10.0)
+    diff = np.mean(np.absolute(x - q))
     
     sns.set()
     qualplot = plt.figure()
+    qualplot.suptitle(plottitle)
     plt.plot(x,x)
     plt.plot(x,q)
     plt.xlabel("Predicted Quality Score")
     plt.ylabel("Actual Quality Score")
     plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
+    plt.text(0.5,0.01, "Mean absolute difference: " + diff,
+        horizontalalignment = 'center', verticalalignment = 'bottom',
+        transform = plt.transAxes)
     qualplot.savefig(plotname)
 
 """
@@ -625,8 +630,8 @@ def main():
     pysam.index(outfile)
     correctederrs, correctedtot = count_qual_scores(pysam.AlignmentFile(outfile),refdict, conf_regions, vcf)
     
-    plot_qual_scores(numerrors, numtotal, "qualscores.png")
-    plot_qual_scores(correctederrs, correctedtot, "corrected.png")
+    plot_qual_scores(numerrors, numtotal, "qualscores.png", "Raw Reads")
+    plot_qual_scores(correctederrs, correctedtot, "After Correction")
     print(tstamp(), "Done", file = sys.stderr)
 
 if __name__ == '__main__':
