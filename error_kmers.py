@@ -281,75 +281,28 @@ def calc_loglike(x, i, A, E, pi, ksize):
     _, normalizer = normalized_forward(A, E, pi)
     return np.sum(np.log(normalizer))
 
-def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
+def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelxi, modelgamma):
     print(tstamp(), "Correcting Input Reads . . .", file=sys.stderr)
     np.seterr(all='raise')
-    ksize = kgraph.ksize()
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
-    pa = tcounts/np.nansum(tcounts)
-    ecounts = tcounts * perror
-    p_e_given_a = np.array(ecounts/tcounts, dtype = np.longdouble)
-    p_a_given_e = np.array(ecounts/np.nansum(ecounts), dtype = np.longdouble)
-    p_a_given_note = np.array((tcounts-ecounts) / np.nansum(tcounts-ecounts), dtype = np.longdouble)
-    
-    #fix zeros
-    p_a_given_e[p_a_given_e == 1.0] = 0.9999
-    p_a_given_note[p_a_given_note == 0.0] = 0.0001
-
-    # print(tcounts)
-    # print(perror)
-    # print(denom)
-    
+    i = 0
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
-            kmers = kgraph.get_kmers(read.query_sequence)
-            counts = np.array(list(map(kgraph.get, kmers)), dtype = np.int)
+            A = modelA[i,:]
+            xi = modelxi[i,:]
+            gamma = modelgamma[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
-            
-            #log10p = np.array(-quals/10.0)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
-            A = np.zeros((2,2), dtype=np.longdouble)
-            E = np.zeros((len(counts),2,1), dtype=np.longdouble)
-            pi = np.array([[p_e_given_a[counts[0]]],[1.0-p_e_given_a[counts[0]]]], dtype=np.longdouble) #probability for 1st state
-            for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
-                pe0 = p[j-1] #A[0] will not make any sense because of this
-                pe1 = p[j+ksize-1]
-                try:
-                    assert 0.0 <= pe0 <= 1.0
-                    assert 0.0 <= pe1 <= 1.0
-                except AssertionError:
-                    print(z)
-                    print("pe0:",pe0)
-                    print("pe1:",pe1)
-                    print("p:",p)
-                    raise
-                A += np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longdouble, copy = True) #A is size len(counts), but A[0] is meaningless
-                E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longdouble, copy = True) #E is size len(counts)
-            A = A / len(counts)
-            A, xi, gamma = baum_welch(A, E, pi)
-            p[ksize:] = xi[:,0,1] * gamma[:,0,0]
+
+            #update probabilities with model
+            #p[ksize:] = xi[:,0,1]
             #p[:ksize] = xi[:ksize,1,0] / xi[:ksize,0,0]
             #p[ksize:] = A[0,1]
-            # error -> nonerror = pe0 and (1-pe1)
-            #
-            # for j, count in enumerate(counts):
-                # pe1 = A[0,1]
-                # p[j + ksize - 1] = pe1
 
-                #update_pe1 = np.array(update[:,0,1]) #this looks like it works
-                #p[:ksize] = update_pe0[:ksize]
-                #p[-ksize:] = update_pe1[-ksize:]
-
-                #optimization
-                #nll = lambda x, i, A, E, pi, ksize: -calc_loglike(x[0], i, np.array(A, copy = True), E, pi, ksize) #use a copy of A to avoid changing A.
-                #for j, initial_est in enumerate(p[ksize:-ksize]):
-                #   i = j + ksize
-                #   optim_result = op.minimize(nll, [initial_est], args = (i, np.array(A, copy = True), E, pi, ksize), bounds = [(0.0,1.0)], tol = 1e-4) #tolerance is equivalent to PHRED score 40, since this is the max score
-                #   p[i] = optim_result.x[0]
-
-                #this seems pretty good
-                #p[ksize:-ksize] = (xi[ksize:,1,0] + xi[:-ksize,0,1]) / (gamma[ksize:,1,0] + gamma[:-ksize,0,0]) #this seems pretty close? to working
+            #this seems pretty good
+            p[ksize:-ksize] = (xi[ksize:,1,0] + xi[:-ksize,0,1]) / (gamma[ksize:,1,0] + gamma[:-ksize,0,0]) #this seems pretty close? to working
+            p[-ksize:] = xi[-ksize:,0,1]
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
             except AssertionError:
@@ -364,6 +317,7 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
             read.query_qualities = quals
             
             outsam.write(read)
+            i = i + 1
 
 def baum_welch(A, E, pi):
     """
@@ -408,6 +362,54 @@ def baum_welch(A, E, pi):
             raise
         A = np.array(update, copy = True)
     return A, xi, gamma
+
+def train_model(samfile, conf_regions, tcounts, perror, kgraph):
+    np.seterr(all='raise')
+    ksize = kgraph.ksize()
+    ecounts = tcounts * perror
+    p_e_given_a = np.array(ecounts/tcounts, dtype = np.longdouble)
+    p_a_given_e = np.array(ecounts/np.nansum(ecounts), dtype = np.longdouble)
+    p_a_given_note = np.array((tcounts-ecounts) / np.nansum(tcounts-ecounts), dtype = np.longdouble)
+    #fix zeros
+    p_a_given_e[p_a_given_e == 1.0] = 0.9999
+    p_a_given_note[p_a_given_note == 0.0] = 0.0001
+
+    models_A = list()
+    models_xi = list()
+    models_gamma = list()
+    for regionstr in conf_regions:
+        for read in samfile.fetch(region=regionstr):
+            kmers = kgraph.get_kmers(read.query_sequence)
+            counts = np.array(list(map(kgraph.get, kmers)), dtype = np.int)
+            quals = np.array(read.query_qualities, dtype=np.int)
+            
+            p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
+            A = np.zeros((2,2), dtype=np.longdouble)
+            E = np.zeros((len(counts),2,1), dtype=np.longdouble)
+            pi = np.array([[p_e_given_a[counts[0]]],[1.0-p_e_given_a[counts[0]]]], dtype=np.longdouble) #probability for 1st state
+            for j, count in enumerate(counts): #the emission matrix is of length counts, the transition matrix is of length counts - 1
+                pe0 = p[j-1] #A[0] will not make any sense because of this
+                pe1 = p[j+ksize-1]
+                try:
+                    assert 0.0 <= pe0 <= 1.0
+                    assert 0.0 <= pe1 <= 1.0
+                except AssertionError:
+                    print(z)
+                    print("pe0:",pe0)
+                    print("pe1:",pe1)
+                    print("p:",p)
+                    raise
+                A += np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longdouble, copy = True) #A is size len(counts), but A[0] is meaningless
+                E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longdouble, copy = True) #E is size len(counts)
+            A = A / len(counts)
+            A, xi, gamma = baum_welch(A, E, pi)
+            models_A.append(A)
+            models_xi.append(xi)
+            models_gamma.append(gamma)
+    Astack = np.stack(models_A)
+    xistack = np.stack(models_xi)
+    gammastack = np.stack(models_gamma)
+    return Astack, xistack, gammastack
 
 
 def normalized_forward(A, E, pi):
@@ -561,6 +563,10 @@ def main():
     numtotalfile = fileprefix + 'numtotal.txt.gz'
     kmergraphfile = fileprefix + 'kmers.khmer'
     outfile = fileprefix + 'test.bam'
+    modelbase = fileprefix + 'jmodel_'
+    modela = modelbase + 'A.txt.gz'
+    modelxi = modelbase + 'xi.txt.gz'
+    modelgamma = modelbase + 'gamma.txt.gz'
     np.set_printoptions(edgeitems=100)
     
     
@@ -594,6 +600,7 @@ def main():
         np.savetxt(numerrsfile, numerrors, fmt = '%d')
         np.savetxt(numtotalfile, numtotal, fmt = '%d')
     
+
     #tabund[i] = count of kmer with index i
     #tcounts[i] = number of kmers with count i
     
@@ -601,7 +608,20 @@ def main():
     perror, tcounts = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
     
     samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
-    correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, alltable) #creates outfile
+    
+    if all([os.path.exists(modela), os.path.exists(modelxi), os.path.exists(modelgamma)]):
+        print(tstamp(), "Loading model . . .", file = sys.stderr)
+        A = np.loadtxt(modela, dtype = np.longdouble)
+        xi = np.loadtxt(modelxi, dtype = np.longdouble)
+        gamma = np.loadtxt(modelgamma, dtype = np.longdouble)
+    else:
+        print(tstamp(), "Training model . . .", file = sys.stderr)
+        A, xi, gamma = train_model(samfile, conf_regions, tcounts, perror, alltable)
+        np.savetxt(modela, A, fmt='%d')
+        np.savetxt(modelxi, xi, fmt='%d')
+        np.savetxt(modelgamma, gamma, fmt='%d')
+
+    correct_sam_test(samfile, conf_regions, outfile, alltable.ksize(), A, xi, gamma) #creates outfile
     pysam.index(outfile)
     correctederrs, correctedtot = count_qual_scores(pysam.AlignmentFile(outfile),refdict, conf_regions, vcf)
     
