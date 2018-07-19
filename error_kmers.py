@@ -327,10 +327,10 @@ def correct_sam_test(samfile, conf_regions, outfile, tcounts, perror, kgraph):
                 A += np.array([[1.0 - pe1, pe1],[pe0 - pe0*pe1, 1.0 - pe0+pe0*pe1]], dtype=np.longdouble, copy = True) #A is size len(counts), but A[0] is meaningless
                 E[j] = np.array([[p_a_given_note[count]],[p_a_given_e[count]]], dtype=np.longdouble, copy = True) #E is size len(counts)
             A = A / len(counts)
-            A, xi = baum_welch(A, E, pi)
-            #p[ksize:] = xi[:,0,1]
+            A, xi, gamma = baum_welch(A, E, pi)
+            p[ksize:] = xi[:,0,1] * gamma[:,0,0]
             #p[:ksize] = xi[:ksize,1,0] / xi[:ksize,0,0]
-            p[ksize:] = A[0,1]
+            #p[ksize:] = A[0,1]
             # error -> nonerror = pe0 and (1-pe1)
             #
             # for j, count in enumerate(counts):
@@ -407,7 +407,7 @@ def baum_welch(A, E, pi):
             print("gamma:", gamma)
             raise
         A = np.array(update, copy = True)
-    return A, xi
+    return A, xi, gamma
 
 
 def normalized_forward(A, E, pi):
