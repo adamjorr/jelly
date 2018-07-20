@@ -568,10 +568,7 @@ def main():
     numtotalfile = fileprefix + 'numtotal.txt.gz'
     kmergraphfile = fileprefix + 'kmers.khmer'
     outfile = fileprefix + 'test.bam'
-    modelbase = fileprefix + 'jmodel_'
-    modela = modelbase + 'A.txt.gz'
-    modelxi = modelbase + 'xi.txt.gz'
-    modelgamma = modelbase + 'gamma.txt.gz'
+    modelfile = fileprefix + 'model.npz'
     np.set_printoptions(edgeitems=100)
     
     
@@ -614,17 +611,16 @@ def main():
     
     samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
     
-    if all([os.path.exists(modela), os.path.exists(modelxi), os.path.exists(modelgamma)]):
+    if os.path.exists(modelfile):
         print(tstamp(), "Loading model . . .", file = sys.stderr)
-        A = np.loadtxt(modela, dtype = np.longdouble)
-        xi = np.loadtxt(modelxi, dtype = np.longdouble)
-        gamma = np.loadtxt(modelgamma, dtype = np.longdouble)
+        loadedmodel = np.load(modelfile)
+        A = np.array(loadedmodel['A'], dtype = np.longdouble)
+        xi = np.array(loadedmodel['xi'], dtype = np.longdouble)
+        gamma = np.array(loadedmodel['gamma'], dtype = np.longdouble)
     else:
         print(tstamp(), "Training model . . .", file = sys.stderr)
         A, xi, gamma = train_model(samfile, conf_regions, tcounts, perror, alltable)
-        np.savetxt(modela, A, fmt='%d')
-        np.savetxt(modelxi, xi, fmt='%d')
-        np.savetxt(modelgamma, gamma, fmt='%d')
+        np.savez_compressed(modelfile, A = A, xi = xi, gamma = gamma)
 
     correct_sam_test(samfile, conf_regions, outfile, alltable.ksize(), A, xi, gamma) #creates outfile
     pysam.index(outfile)
