@@ -628,7 +628,7 @@ def main():
     correctederrs, correctedtot = count_qual_scores(pysam.AlignmentFile(outfile),refdict, conf_regions, vcf)
     
     plot_qual_scores(numerrors, numtotal, "qualscores.png", "Raw Reads")
-    plot_qual_scores(correctederrs, correctedtot, "After Correction")
+    plot_qual_scores(correctederrs, correctedtot, "corrected.png", "After Correction")
     print(tstamp(), "Done", file = sys.stderr)
 
 if __name__ == '__main__':
