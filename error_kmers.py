@@ -262,7 +262,7 @@ def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     plt.xlabel("Predicted Quality Score")
     plt.ylabel("Actual Quality Score")
     plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
-    plt.text(0.5,0.01, "Mean absolute difference: " + diff,
+    plt.text(0.5,0.01, "Mean absolute difference: " + str(diff),
         horizontalalignment = 'center', verticalalignment = 'bottom',
         transform = plt.transAxes)
     qualplot.savefig(plotname)
