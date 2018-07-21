@@ -256,6 +256,7 @@ def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     
     sns.set()
     qualplot = plt.figure()
+    ax = qualplot.add_subplot(111)
     qualplot.suptitle(plottitle)
     plt.plot(x,x)
     plt.plot(x,q)
@@ -264,7 +265,7 @@ def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
     plt.text(0.5,0.01, "Mean absolute difference: " + str(diff),
         horizontalalignment = 'center', verticalalignment = 'bottom',
-        transform = plt.transAxes)
+        transform = ax.transAxes)
     qualplot.savefig(plotname)
 
 """
