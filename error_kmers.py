@@ -287,7 +287,7 @@ def calc_loglike(x, i, A, E, pi, ksize):
     _, normalizer = normalized_forward(A, E, pi)
     return np.sum(np.log(normalizer))
 
-def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelxi, modelgamma):
+def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, modelxi, modelgamma):
     print(tstamp(), "Correcting Input Reads . . .", file=sys.stderr)
     np.seterr(all='raise')
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
@@ -298,6 +298,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelxi, mod
             A = modelA[i,:]
             xi = modelxi[i,:]
             gamma = modelgamma[i,:]
+            E = modelE[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
 
@@ -307,8 +308,13 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelxi, mod
             #p[ksize:] = A[0,1]
 
             #this seems pretty good
-            p[ksize:-ksize] = (xi[ksize:,1,0] + xi[:-ksize,0,1]) / (gamma[ksize:,1,0] + gamma[:-ksize,0,0]) #this seems pretty close? to working
-            p[-ksize:] = xi[-ksize:,0,1]
+            #p[ksize:-ksize] = (xi[ksize:,1,0] + xi[:-ksize,0,1]) / (gamma[ksize:,1,0] + gamma[:-ksize,0,0]) #this seems pretty close? to working
+            
+            for j in range(len(p - 2*ksize)):
+                p_obs_given_note = np.prod(E[j:j+ksize, 0])
+                p_obs_given_e = np.prod(E[j:j+ksize, 1])
+                p[j + ksize - 1] = p_obs_given_e * p[j + ksize - 1] / (p_obs_given_e + p_obs_given_note)
+
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
             except AssertionError:
@@ -383,6 +389,7 @@ def train_model(samfile, conf_regions, tcounts, perror, kgraph):
     models_A = list()
     models_xi = list()
     models_gamma = list()
+    models_E = list()
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             kmers = kgraph.get_kmers(read.query_sequence)
@@ -412,10 +419,12 @@ def train_model(samfile, conf_regions, tcounts, perror, kgraph):
             models_A.append(A)
             models_xi.append(xi)
             models_gamma.append(gamma)
+            models_E.append(E)
     Astack = np.stack(models_A)
     xistack = np.stack(models_xi)
     gammastack = np.stack(models_gamma)
-    return Astack, xistack, gammastack
+    Estack = np.stack(models_E)
+    return Astack, Estack, xistack, gammastack
 
 
 def normalized_forward(A, E, pi):
@@ -618,12 +627,13 @@ def main():
         A = np.array(loadedmodel['A'], dtype = np.longdouble)
         xi = np.array(loadedmodel['xi'], dtype = np.longdouble)
         gamma = np.array(loadedmodel['gamma'], dtype = np.longdouble)
+        E = np.array(loadedmodel['E'], dtype = np.longdouble)
     else:
         print(tstamp(), "Training model . . .", file = sys.stderr)
-        A, xi, gamma = train_model(samfile, conf_regions, tcounts, perror, alltable)
-        np.savez_compressed(modelfile, A = A, xi = xi, gamma = gamma)
+        A, E, xi, gamma = train_model(samfile, conf_regions, tcounts, perror, alltable)
+        np.savez_compressed(modelfile, A = A, E = E, xi = xi, gamma = gamma)
 
-    correct_sam_test(samfile, conf_regions, outfile, alltable.ksize(), A, xi, gamma) #creates outfile
+    correct_sam_test(samfile, conf_regions, outfile, alltable.ksize(), A, E, xi, gamma) #creates outfile
     pysam.index(outfile)
     correctederrs, correctedtot = count_qual_scores(pysam.AlignmentFile(outfile),refdict, conf_regions, vcf)
     
