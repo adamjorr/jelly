@@ -314,7 +314,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             # errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
 
             mranges = split_into_ranges(p, ksize)
-            for j in range(len(p)):
+            for j in range(len(p)-1):
                 covering_mer_idxs = [i for i,k in enumerate(mranges) if j in k]
                 subsetE = E[covering_mer_idxs,]
                 p_obs_given_e = np.prod(subsetE[:,1])
