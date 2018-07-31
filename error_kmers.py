@@ -301,6 +301,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             E = modelE[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
+            logp = np.log(p)
 
             #update probabilities with model
             #p[ksize:] = xi[:,0,1]
@@ -317,13 +318,13 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             for j in range(len(p)-1):
                 covering_mer_idxs = [i for i,k in enumerate(mranges) if j in k]
                 subsetE = E[covering_mer_idxs,]
-                p_obs_given_e = np.prod(subsetE[:,1])
+                p_obs_given_e = np.sum(np.log(subsetE[:,1]))
 
                 #now calc p_obs
                 pi = gamma[covering_mer_idxs[0],]
                 _, normalizer = normalized_forward(A,subsetE,pi)
-                p_obs = np.prod(normalizer)
-                p[j] = p_obs_given_e * p[j] / (p_obs)
+                p_obs = np.sum(np.log(normalizer))
+                p[j] = np.exp(p_obs_given_e + logp[j] - p_obs)
 
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
