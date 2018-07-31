@@ -313,7 +313,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             # mranges = mer_ranges(mers, ksize)
             # errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
 
-            mranges = mer_ranges(p, ksize)
+            mranges = split_into_ranges(p, ksize)
             for j in range(len(p)):
                 covering_mer_idxs = [i for i,k in enumerate(mranges) if j in k]
                 p_obs_given_note = np.prod(E[covering_mer_idxs, 0])
