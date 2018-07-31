@@ -316,9 +316,14 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             mranges = split_into_ranges(p, ksize)
             for j in range(len(p)):
                 covering_mer_idxs = [i for i,k in enumerate(mranges) if j in k]
-                p_obs_given_note = np.prod(E[covering_mer_idxs, 0])
-                p_obs_given_e = np.prod(E[covering_mer_idxs, 1])
-                p[j] = p_obs_given_e * p[j] / (p_obs_given_e + p_obs_given_note)
+                subsetE = E[covering_mer_idxs,]
+                p_obs_given_e = np.prod(subsetE[:,1])
+
+                #now calc p_obs
+                pi = gamma[covering_mer_idxs[0],]
+                _, normalizer = normalized_forward(A,E,pi)
+                p_obs = np.prod(normalizer)
+                p[j] = p_obs_given_e * p[j] / (p_obs)
 
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
