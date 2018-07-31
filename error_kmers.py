@@ -310,10 +310,15 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             #this seems pretty good
             #p[ksize:-ksize] = (xi[ksize:,1,0] + xi[:-ksize,0,1]) / (gamma[ksize:,1,0] + gamma[:-ksize,0,0]) #this seems pretty close? to working
             
-            for j in range(len(p - 2*ksize)):
-                p_obs_given_note = np.prod(E[j:j+ksize, 0])
-                p_obs_given_e = np.prod(E[j:j+ksize, 1])
-                p[j + ksize - 1] = p_obs_given_e * p[j + ksize - 1] / (p_obs_given_e + p_obs_given_note)
+            # mranges = mer_ranges(mers, ksize)
+            # errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
+
+            mranges = mer_ranges(p, ksize)
+            for j in range(len(p)):
+                covering_mer_idxs = [i for i,k in enumerate(mranges) if j in k]
+                p_obs_given_note = np.prod(E[covering_mer_idxs, 0])
+                p_obs_given_e = np.prod(E[covering_mer_idxs, 1])
+                p[j] = p_obs_given_e * p[j] / (p_obs_given_e + p_obs_given_note)
 
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
@@ -330,6 +335,14 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             
             outsam.write(read)
             i = i + 1
+
+def kmer_index_covering_pos(strlen, ksize, pos):
+    meridx = 0
+    i = 0
+    while i < pos:
+        mer_range =
+        meridx = meridx + 1
+        i = i + 1
 
 def baum_welch(A, E, pi):
     """
