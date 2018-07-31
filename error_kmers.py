@@ -336,14 +336,6 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             outsam.write(read)
             i = i + 1
 
-def kmer_index_covering_pos(strlen, ksize, pos):
-    meridx = 0
-    i = 0
-    while i < pos:
-        mer_range =
-        meridx = meridx + 1
-        i = i + 1
-
 def baum_welch(A, E, pi):
     """
     Return new A
