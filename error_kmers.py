@@ -321,7 +321,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
 
                 #now calc p_obs
                 pi = gamma[covering_mer_idxs[0],]
-                _, normalizer = normalized_forward(A,E,pi)
+                _, normalizer = normalized_forward(A,subsetE,pi)
                 p_obs = np.prod(normalizer)
                 p[j] = p_obs_given_e * p[j] / (p_obs)
 
