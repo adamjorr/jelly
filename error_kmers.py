@@ -326,6 +326,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 p_obs = np.sum(np.log(normalizer))
                 p[j] = np.exp(p_obs_given_e + logp[j] - p_obs)
 
+            p = np.clip(p, 0.0, 1.0)
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
             except AssertionError:
