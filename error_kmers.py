@@ -302,8 +302,15 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
 
-            pe1 = np.array([[0,1],[0,1/ksize]]) #if this doesn't work, try using current p
-            pe0 = np.array([[0,0],[1,1/ksize]]) #
+            # pe1 = np.array([[0,1],[0,1/ksize]]) #if this doesn't work, try using current p
+            # pe0 = np.array([[0,0],[1,1/ksize]]) #
+            pe1 = np.zeros([len(p),2,2], dtype = np.longdouble)
+            pe0 = np.zeros([ksize,2,2], dtype = np.longdouble)
+            pe1[:,0,1] = 1
+            pe1[:,1,1] = p[ksize:]
+            pe0[:,1,0] = 1
+            pe0[:,1,1] = p[:ksize]
+
             p[ksize:] = np.sum(xi * pe1, axis = (1,2))
             p[:ksize] = np.sum(xi[:ksize,] * pe0, axis = (1,2))
 
