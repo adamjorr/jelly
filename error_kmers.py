@@ -303,7 +303,9 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
 
             pe1 = np.array([[0,1],[0,1/ksize]]) #if this doesn't work, try using current p
-            p[0:-1] = np.sum(xi * pe1, axis = (1,2))
+            pe0 = np.array([[0,0],[1,1/ksize]]) #
+            p[ksize:] = np.sum(xi * pe1, axis = (1,2))
+            p[:ksize] = np.sum(xi * pe0, axis = (1,2))
 
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
