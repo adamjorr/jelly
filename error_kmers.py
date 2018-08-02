@@ -304,7 +304,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
 
             # pe1 = np.array([[0,1],[0,1/ksize]]) #if this doesn't work, try using current p
             # pe0 = np.array([[0,0],[1,1/ksize]]) #
-            pe1 = np.zeros([len(p),2,2], dtype = np.longdouble)
+            pe1 = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
             pe0 = np.zeros([ksize,2,2], dtype = np.longdouble)
             pe1[:,0,1] = 1
             pe1[:,1,1] = p[ksize:]
