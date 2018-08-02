@@ -301,32 +301,10 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             E = modelE[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
-            logp = np.log(p)
 
-            #update probabilities with model
-            #p[ksize:] = xi[:,0,1]
-            #p[:ksize] = xi[:ksize,1,0] / xi[:ksize,0,0]
-            #p[ksize:] = A[0,1]
+            pe1 = np.array([[0,1],[0,1/ksize]]) #if this doesn't work, try using current p
+            p[0:-1] = np.sum(xi * pe1, axis = (1,2))
 
-            #this seems pretty good
-            #p[ksize:-ksize] = (xi[ksize:,1,0] + xi[:-ksize,0,1]) / (gamma[ksize:,1,0] + gamma[:-ksize,0,0]) #this seems pretty close? to working
-            
-            # mranges = mer_ranges(mers, ksize)
-            # errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
-
-            mranges = split_into_ranges(p, ksize)
-            for j in range(len(p)-1):
-                covering_mer_idxs = [i for i,k in enumerate(mranges) if j in k]
-                subsetE = np.array(E[covering_mer_idxs,])
-                p_obs_given_e = np.sum(np.log(subsetE[:,1]))
-
-                #now calc p_obs
-                pi = gamma[covering_mer_idxs[0],]
-                _, normalizer = normalized_forward(A,subsetE,pi)
-                p_obs = np.sum(np.log(normalizer))
-                p[j] = np.exp(p_obs_given_e + logp[j] - p_obs)
-
-            p = np.clip(p, 0.0, 1.0)
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
             except AssertionError:
