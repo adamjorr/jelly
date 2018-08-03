@@ -304,15 +304,22 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
 
             # pe1 = np.array([[0,1],[0,1/ksize]]) #if this doesn't work, try using current p
             # pe0 = np.array([[0,0],[1,1/ksize]]) #
-            pe1 = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
-            pe0 = np.zeros([ksize,2,2], dtype = np.longdouble)
-            pe1[:,0,1] = 1
-            pe1[:,1,1] = p[ksize:]
-            pe0[:,1,0] = 1
-            pe0[:,1,1] = p[:ksize]
+            pe1_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
+            pe0_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
+            pe1_given_q[:,0,1] = 1
+            pe1_given_q[:,1,1] = p[ksize:]
+            pe0_given_q[:,1,0] = 1
+            pe0_given_q[:,1,1] = p[:-ksize]
 
-            p[ksize:] = np.sum(xi * pe1, axis = (1,2))
-            p[:ksize] = np.sum(xi[:ksize,] * pe0, axis = (1,2))
+            # p[:-ksize] = np.sum(xi[:ksize,] * pe0, axis = (1,2))
+            # p[ksize:] = np.sum(xi * pe1, axis = (1,2))
+            
+            pe0 = np.sum(xi * pe0_given_q, axis = (1,2))
+            pe1 = np.sum(xi * pe1_given_q, axis = (1,2))
+            pe0 = np.pad(pe0, (0, ksize), 'constant')
+            pe1 = np.pad(pe1, (ksize, 0), 'constant')
+
+            p = pe0 + pe1
 
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
