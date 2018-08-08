@@ -304,22 +304,51 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
 
             # pe1 = np.array([[0,1],[0,1/ksize]]) #if this doesn't work, try using current p
             # pe0 = np.array([[0,0],[1,1/ksize]]) #
-            pe1_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
-            pe0_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
-            pe1_given_q[:,0,1] = 1
-            pe1_given_q[:,1,1] = p[ksize:]
-            pe0_given_q[:,1,0] = 1
-            pe0_given_q[:,1,1] = p[:-ksize]
+
+            #this block calculates P(E|O,M) = sum(P(E|Q) * P(Q|O,M))
+            #for t in range(len(xi)-ksize):
+            #    xi0 = xi[t,]
+            #    xi1 = xi[t+ksize,]
+            #    p_q_given_o = np.prod(np.array(np.hmeshgrid(xi0,xi1)).T.reshape(-1,2),axis=1)
+            #    prior_p = p[t+ksize]
+            #    p_e_given_q = np.array([0,0,prior_p,0,prior_p,prior_p,1,1,0,0,prior_p,0,0,0,1,prior_p], dtype=np.longdouble)
+            #    p[t+ksize] = np.sum(p_q_given_o * p_e_given_q)
+
+            #this block is me attempting to calculate P(E|O,M) = P(O|E,M)*P(E)/P(O) = sum(P(O|Q,M)*P(Q|E,M))*P(E)/P(O)
+            for t in range(len(xi)-ksize):
+                E0=E[t,]
+                E1=E[t+1,]
+                E2=E[t+ksize,]
+                E3=E[t+ksize+1,]
+                #first transition. this multiplies the probabilities together and reshapes it to be like xi or A
+                first = np.prod(np.array(np.meshgrid(E0,E1)).T.reshape(-1,2),axis=1).reshape(2,2)
+                second = np.prod(np.array(np.meshgrid(E2,E3)).T.reshape(-1,2),axis=1).reshape(2,2)
+                p_o_given_q = np.prod(np.array(np.meshgrid(first,second)).T.reshape(-1,2), axis=1)
+                p_q_given_e = np.array([0,0,0,0,0,0,1/4,1/4,0,0,0,0,0,0,1/4,1/4])
+                p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
+                p_q_given_note = p_q_given_e[::-1]
+                p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
+                perr = p[t+ksize]
+                p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
+                p[t+ksize] = p_e_given_o
+            
+            
+            #pe1_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
+            #pe0_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
+            #pe1_given_q[:,0,1] = 1
+            #pe1_given_q[:,1,1] = p[ksize:]
+            #pe0_given_q[:,1,0] = 1
+            #pe0_given_q[:,1,1] = p[:-ksize]
 
             # p[:-ksize] = np.sum(xi[:ksize,] * pe0, axis = (1,2))
             # p[ksize:] = np.sum(xi * pe1, axis = (1,2))
             
-            pe0 = np.sum(xi * pe0_given_q, axis = (1,2))
-            pe1 = np.sum(xi * pe1_given_q, axis = (1,2))
-            pe0 = np.pad(pe0, (0, ksize), 'constant')
-            pe1 = np.pad(pe1, (ksize, 0), 'constant')
+            #pe0 = np.sum(xi * pe0_given_q, axis = (1,2))
+            #pe1 = np.sum(xi * pe1_given_q, axis = (1,2))
+            #pe0 = np.pad(pe0, (0, ksize), 'constant')
+            #pe1 = np.pad(pe1, (ksize, 0), 'constant')
 
-            p = pe0 + pe1
+            #p = pe0 + pe1
 
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
