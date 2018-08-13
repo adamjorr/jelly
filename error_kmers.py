@@ -292,11 +292,11 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
     np.seterr(all='raise')
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
-    start_e_mask = np.nonzero(np.array([0,0,1,1]))
+    start_e_mask = np.array([0,0,1,1])
     start_note_mask = np.array(start_e_mask[::-1])
-    middle_e_mask = np.nonzero(np.array([0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1]))
+    middle_e_mask = np.array([0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1])
     middle_note_mask = np.array(middle_e_mask[::-1])
-    end_e_mask = np.nonzero(np.array([1,0,1,0]))
+    end_e_mask = np.array([1,0,1,0])
     end_note_mask = np.array(end_e_mask[::-1])
       
     i = 0
@@ -321,8 +321,8 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             #    p[t+ksize] = np.sum(p_q_given_o * p_e_given_q)
 
             #this block is me attempting to calculate P(E|O,M) = P(O|E,M)*P(E)/P(O) = sum(P(O|Q,M)*P(Q|E,M))*P(E)/P(O)
-            p_q_given_e = p_q_middle[middle_e_mask]
-            p_q_given_note = p_q_middle[middle_note_mask]
+            p_q_given_e = p_q_middle * middle_e_mask
+            p_q_given_note = p_q_middle * middle_note_mask
             for t in range(len(xi)-ksize):
                 E0=E[t,]
                 E1=E[t+1,]
@@ -340,8 +340,8 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 p[t+ksize] = p_e_given_o
             
             #now do the same for the first ksize bases
-            p_q_given_e = p_q[start_e_mask]
-            p_q_given_note = p_q[start_note_mask]
+            p_q_given_e = p_q * start_e_mask
+            p_q_given_note = p_q * start_note_mask
             for t in range(ksize):
                 E0=E[t,]
                 E1=E[t+1,]
@@ -353,8 +353,8 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 p[t] = p_e_given_o
 
             #now for the last ksize bases
-            p_q_given_e = p_q[end_e_mask]
-            p_q_given_note = p_q[end_note_mask]
+            p_q_given_e = p_q * end_e_mask
+            p_q_given_note = p_q * end_note_mask
             adjustment = len(xi) - ksize
             for k in range(ksize):
                 t = k + adjustment
