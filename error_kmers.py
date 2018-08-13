@@ -292,6 +292,13 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
     np.seterr(all='raise')
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
+    start_e_mask = np.nonzero(np.array([0,0,1,1]))
+    start_note_mask = np.array(start_e_mask[::-1])
+    middle_e_mask = np.nonzero(np.array([0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1]))
+    middle_note_mask = np.array(middle_e_mask[::-1])
+    end_e_mask = np.nonzero(np.array([1,0,1,0]))
+    end_note_mask = np.array(end_e_mask[::-1])
+      
     i = 0
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
@@ -301,9 +308,8 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             E = modelE[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
-
-            # pe1 = np.array([[0,1],[0,1/ksize]]) #if this doesn't work, try using current p
-            # pe0 = np.array([[0,0],[1,1/ksize]]) #
+            p_q = A.flatten()
+            p_q_middle = np.prod(np.array(np.meshgrid(A,A)).T.reshape(-1,2), axis=1)
 
             #this block calculates P(E|O,M) = sum(P(E|Q) * P(Q|O,M))
             #for t in range(len(xi)-ksize):
@@ -315,46 +321,47 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             #    p[t+ksize] = np.sum(p_q_given_o * p_e_given_q)
 
             #this block is me attempting to calculate P(E|O,M) = P(O|E,M)*P(E)/P(O) = sum(P(O|Q,M)*P(Q|E,M))*P(E)/P(O)
+            p_q_given_e = p_q_middle[middle_e_mask]
+            p_q_given_note = p_q_middle[middle_note_mask]
             for t in range(len(xi)-ksize):
                 E0=E[t,]
                 E1=E[t+1,]
                 E2=E[t+ksize,]
                 E3=E[t+ksize+1,]
+                
                 #first transition. this multiplies the probabilities together and reshapes it to be like xi or A
                 first = np.prod(np.array(np.meshgrid(E0,E1)).T.reshape(-1,2),axis=1).reshape(2,2)
                 second = np.prod(np.array(np.meshgrid(E2,E3)).T.reshape(-1,2),axis=1).reshape(2,2)
                 p_o_given_q = np.prod(np.array(np.meshgrid(first,second)).T.reshape(-1,2), axis=1)
-                p_q_given_e = np.array([0,0,0,0,0,0,1/4,1/4,0,0,0,0,0,0,1/4,1/4], dtype = np.longdouble)
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
-                p_q_given_note = np.array(p_q_given_e[::-1], dtype = np.longdouble)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 perr = p[t+ksize]
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
                 p[t+ksize] = p_e_given_o
             
             #now do the same for the first ksize bases
+            p_q_given_e = p_q[start_e_mask]
+            p_q_given_note = p_q[start_note_mask]
             for t in range(ksize):
                 E0=E[t,]
                 E1=E[t+1,]
                 p_o_given_q = np.prod(np.array(np.meshgrid(E0,E1)).T.reshape(-1,2),axis=1)
-                p_q_given_e = np.array([0,0,1/2,1/2], dtype = np.longdouble)
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
-                p_q_given_note = np.array(p_q_given_e[::-1], dtype = np.longdouble)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 perr = p[t]
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
                 p[t] = p_e_given_o
 
             #now for the last ksize bases
+            p_q_given_e = p_q[end_e_mask]
+            p_q_given_note = p_q[end_note_mask]
             adjustment = len(xi) - ksize
             for k in range(ksize):
                 t = k + adjustment
                 E0=E[t,]
                 E1=E[t+1,]
                 p_o_given_q = np.prod(np.array(np.meshgrid(E0,E1)).T.reshape(-1,2),axis=1)
-                p_q_given_e = np.array([1/2,0,1/2,0], dtype = np.longdouble)
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
-                p_q_given_note = np.array(p_q_given_e[::-1], dtype = np.longdouble)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 perr = p[t + ksize]
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
