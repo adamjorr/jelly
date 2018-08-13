@@ -287,6 +287,13 @@ def calc_loglike(x, i, A, E, pi, ksize):
     _, normalizer = normalized_forward(A, E, pi)
     return np.sum(np.log(normalizer))
 
+def calc_q_given_lambda(pi, A, length):
+    q = np.zeros(length,2)
+    q[0,] = pi
+    for t in range(1,length):
+        q[t] = np.matmul(np.transpose(A),q[t-1,])
+    return q
+
 def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, modelxi, modelgamma):
     print(tstamp(), "Correcting Input Reads . . .", file=sys.stderr)
     np.seterr(all='raise')
@@ -308,8 +315,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             E = modelE[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
-            p_q = A.flatten()
-            p_q_middle = np.prod(np.array(np.meshgrid(A,A)).T.reshape(-1,2), axis=1)
+            q_given_lambda = calc_q_given_lambda(gamma[0,],A,len(E))
 
             #this block calculates P(E|O,M) = sum(P(E|Q) * P(Q|O,M))
             #for t in range(len(xi)-ksize):
@@ -321,8 +327,6 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             #    p[t+ksize] = np.sum(p_q_given_o * p_e_given_q)
 
             #this block is me attempting to calculate P(E|O,M) = P(O|E,M)*P(E)/P(O) = sum(P(O|Q,M)*P(Q|E,M))*P(E)/P(O)
-            p_q_given_e = p_q_middle * middle_e_mask
-            p_q_given_note = p_q_middle * middle_note_mask
             for t in range(len(xi)-ksize):
                 E0=E[t,]
                 E1=E[t+1,]
@@ -330,9 +334,12 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 E3=E[t+ksize+1,]
                 
                 #first transition. this multiplies the probabilities together and reshapes it to be like xi or A
-                first = np.prod(np.array(np.meshgrid(E0,E1)).T.reshape(-1,2),axis=1).reshape(2,2)
-                second = np.prod(np.array(np.meshgrid(E2,E3)).T.reshape(-1,2),axis=1).reshape(2,2)
-                p_o_given_q = np.prod(np.array(np.meshgrid(first,second)).T.reshape(-1,2), axis=1)
+                first = np.outer(E0,E1).reshape(2,2)
+                second = np.outer(E2,E3).reshape(2,2)
+                p_o_given_q = np.outer(first,second)
+                p_q_given_l = np.outer(q_given_lambda[np.array([t,t+1])], q_given_lambda[np.array([t+ksize,t+ksize+1])])
+                p_q_given_e = p_q_given_l * middle_e_mask
+                p_q_given_note = p_q_given_l * middle_note_mask
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 perr = p[t+ksize]
@@ -340,12 +347,13 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 p[t+ksize] = p_e_given_o
             
             #now do the same for the first ksize bases
-            p_q_given_e = p_q * start_e_mask
-            p_q_given_note = p_q * start_note_mask
             for t in range(ksize):
                 E0=E[t,]
                 E1=E[t+1,]
-                p_o_given_q = np.prod(np.array(np.meshgrid(E0,E1)).T.reshape(-1,2),axis=1)
+                p_o_given_q = np.outer(E0,E1)
+                p_q_given_l = np.outer(q_given_lambda[t], q_given_lambda[t+1])
+                p_q_given_e = p_q_given_l * start_e_mask
+                p_q_given_note = p_q_given_l * start_note_mask
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 perr = p[t]
@@ -353,14 +361,15 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 p[t] = p_e_given_o
 
             #now for the last ksize bases
-            p_q_given_e = p_q * end_e_mask
-            p_q_given_note = p_q * end_note_mask
             adjustment = len(xi) - ksize
             for k in range(ksize):
                 t = k + adjustment
                 E0=E[t,]
                 E1=E[t+1,]
-                p_o_given_q = np.prod(np.array(np.meshgrid(E0,E1)).T.reshape(-1,2),axis=1)
+                p_o_given_q = np.outer(E0,E1)
+                p_q_given_l = np.outer(q_given_lambda[t],q_given_lambda[t+1])
+                p_q_given_e = p_q_given_l * end_e_mask
+                p_q_given_note = p_q_given_l * end_note_mask
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 perr = p[t + ksize]
