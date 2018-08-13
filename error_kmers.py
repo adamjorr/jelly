@@ -337,7 +337,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 first = np.outer(E0,E1).reshape(2,2)
                 second = np.outer(E2,E3).reshape(2,2)
                 p_o_given_q = np.outer(first,second)
-                p_q_given_l = np.outer(q_given_lambda[np.array([t,t+1])], q_given_lambda[np.array([t+ksize,t+ksize+1])])
+                p_q_given_l = np.outer(q_given_lambda[np.array([t,t+1])], q_given_lambda[np.array([t+ksize,t+ksize+1])]).flatten()
                 p_q_given_e = p_q_given_l * middle_e_mask
                 p_q_given_note = p_q_given_l * middle_note_mask
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
@@ -351,7 +351,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 E0=E[t,]
                 E1=E[t+1,]
                 p_o_given_q = np.outer(E0,E1)
-                p_q_given_l = np.outer(q_given_lambda[t], q_given_lambda[t+1])
+                p_q_given_l = np.outer(q_given_lambda[t], q_given_lambda[t+1]).flatten()
                 p_q_given_e = p_q_given_l * start_e_mask
                 p_q_given_note = p_q_given_l * start_note_mask
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
@@ -367,7 +367,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 E0=E[t,]
                 E1=E[t+1,]
                 p_o_given_q = np.outer(E0,E1)
-                p_q_given_l = np.outer(q_given_lambda[t],q_given_lambda[t+1])
+                p_q_given_l = np.outer(q_given_lambda[t],q_given_lambda[t+1]).flatten()
                 p_q_given_e = p_q_given_l * end_e_mask
                 p_q_given_note = p_q_given_l * end_note_mask
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
