@@ -288,11 +288,11 @@ def calc_loglike(x, i, A, E, pi, ksize):
     return np.sum(np.log(normalizer))
 
 def calc_q_given_lambda(pi, A, length):
-    q = np.zeros(length,2)
+    q = np.zeros([length,2], dtype = np.longdouble)
     q[0,] = pi
     for t in range(1,length):
         q[t] = np.matmul(np.transpose(A),q[t-1,])
-    return q
+    return np.array(q, dtype = np.longdouble, copy = True)
 
 def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, modelxi, modelgamma):
     print(tstamp(), "Correcting Input Reads . . .", file=sys.stderr)
