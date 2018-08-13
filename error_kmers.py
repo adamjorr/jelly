@@ -315,7 +315,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             E = modelE[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
-            q_given_lambda = calc_q_given_lambda(gamma[0,],A,len(E))
+            q_given_lambda = calc_q_given_lambda(gamma[0].flatten(),A,len(E))
 
             #this block calculates P(E|O,M) = sum(P(E|Q) * P(Q|O,M))
             #for t in range(len(xi)-ksize):
