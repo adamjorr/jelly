@@ -305,11 +305,11 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
     start_e_mask = np.array([0,0,1,1])
-    start_note_mask = np.array(start_e_mask[::-1])
+    start_note_mask = np.array([1,1,0,1])
     middle_e_mask = np.array([0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1])
-    middle_note_mask = np.array(middle_e_mask[::-1])
-    end_e_mask = np.array([1,0,1,0])
-    end_note_mask = np.array(end_e_mask[::-1])
+    middle_note_mask = np.array([1,1,0,1,0,0,0,0,1,1,0,1,1,1,0,1])
+    end_e_mask = np.array([0,1,0,1])
+    end_note_mask = np.array([1,0,1,1])
       
     i = 0
     for regionstr in conf_regions:
