@@ -634,27 +634,6 @@ def backward(A, E):
 
 def main():
     # args = argparse() #TODO
-    # print(get_kmers_covering("ATCGAA",3,4))
-    # print(get_confident_regions('/home/adam/variant-standards/CHM-eval/hg19/chr1/chr1_confident.bed.gz')[0:2])
-
-    #foo = "ATCGT"
-    #jellyfish.MerDNA.k(4)
-    #bar = jellyfish.HashCounter(1024,15)
-    #baz = jellyfish.string_mers(foo)
-    #for mer in baz:
-    #    print(str(mer))
-    #exit()
-
-    #example
-    # khmer.khmer_args.info = newinfo
-    # args = khmer.khmer_args.build_counting_args().parse_args()
-    # htable = khmer.khmer_args.create_countgraph(args, ksize=3)
-    # htable.count("ATC")
-    # htable.count("ATG")
-    # htable.count("ATG")
-    # print(htable.get("ATC"))
-    # print(htable.get("ATG"))
-
     #arguments
     fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
     samfilename = fileprefix + 'chr1.bam'
