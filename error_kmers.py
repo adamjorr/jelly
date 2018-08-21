@@ -85,42 +85,6 @@ def get_abundances(samfile, conf_regions, totaltable, errortable, trackingtable)
                     errorabund.append(errorcount)
     return totalabund, errorabund
 
-def jellyfish_count(samfile, ref, vcf, conf_regions, alltable, errortable, ksize):
-    for regionstr in conf_regions:
-        for read in samfile.fetch(region=regionstr):
-            kmers = jellyfish.string_canonicals(read.query_sequence)
-            for mer in kmers:
-                alltable.add(mer,1)
-            refchr = read.reference_name
-            refpositions = read.get_reference_positions(full_length = True) #these should be 1-based but are actually 0-based
-            errorpositions = [i for i, pos in enumerate(refpositions) if pos is None or (read.query_sequence[i] != ref[refchr][pos] and pos+1 not in vcf[refchr])]
-            if not errorpositions:
-                continue
-            else:
-                mers = jellyfish.string_canonicals(read.query_sequence)
-                mranges = mer_ranges(mers, ksize)
-                errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
-                for k in errorkmers:
-                    errortable.add(k,1)
-    return alltable, errortable
-
-def jellyfish_abundances(samfile, conf_regions, totaltable, errortable):
-    totalabund, errorabund = [], []
-    counted = initialize_jf_hash() #use this hash so we don't double count any kmers
-    for regionstr in conf_regions:
-        for read in samfile.fetch(region=regionstr):
-            kmers = jellyfish.string_canonicals(read.query_sequence)
-            for mer in kmers:
-                if counted.get(mer) is None:
-                    counted.add(mer,1)
-                    errorcount = getcount(errortable, mer)
-                    totalcount = getcount(totaltable, mer)
-                    assert errorcount <= totalcount, "Mer {} has errorcount {} and totalcount {}.".format(mer, errorcount, totalcount)
-                    assert totalcount > 0, "Mer {} has totalcount <= 0. ({})".format(mer, totalcount)
-                    errorabund.append(errorcount)
-                    totalabund.append(totalcount)
-    return totalabund, errorabund
-
 def mer_ranges(mers,ksize):
     return [range(k,k+ksize) for k in range(len(mers))]
 
@@ -304,10 +268,10 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
     np.seterr(all='raise')
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
-    start_e_mask = np.array([0,0,1,1])
-    start_note_mask = np.array([1,1,0,1])
-    middle_e_mask = np.array([0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1])
-    middle_note_mask = np.array([1,1,0,1,0,0,0,0,1,1,0,1,1,1,0,1])
+    start_e_mask = np.array([0,0,1,.5])
+    start_note_mask = np.array([1,1,0,.5])
+    middle_e_mask = np.array([0,0,.5,0,.5,.5,1,1,0,0,.5,0,0,0,1,.5])
+    middle_note_mask = np.array([1,1,.5,1,.5,.5,0,0,1,1,.5,1,1,1,0,.5])
     end_e_mask = np.array([0,1,0,1])
     end_note_mask = np.array([1,0,1,1])
       
@@ -631,6 +595,28 @@ def backward(A, E):
     for t in reversed(range(0,E.shape[0]-1)):
         beta[t] = np.matmul(A[t+1],E[t+1] * beta[t+1])
     return beta
+
+#todo
+# def print_empirical_pq(totaltable, errortable, samfile, conf_regions, ref, vcf):
+#     getmers = totaltable.get_kmers
+#     gettotal = totaltable.get
+#     geterrors = errortable.get
+#     ksize = totaltable.ksize()
+#     for regionstr in conf_regions:
+#         for read in samfile.fetch(region=regionstr):
+#             #do p_q for this read
+#             kmers = getmers(read.query_sequence)
+#             totals = np.array([gettotal(k) for k in kmers])
+#             errors = np.array([geterrors(k) for k in kmers])
+#             p_q = np.array(errors / totals, dtype = np.longdouble)
+
+#             #now do some counting
+#             refchr = read.reference_name
+#             refpositions = read.get_reference_positions(full_length=True) #these should be 1-based positions but are actually 0-based
+#             errorpositions = np.array([i for i,pos in enumerate(refpositions) if pos is None or (read.query_sequence[i] != ref[refchr][pos] and pos+1 not in vcf[refchr])], dtype=np.intp)
+#             mranges = mer_ranges(kmers, ksize)
+#             errorkmers = [k for i,k in enumerate(mers) if any([p in mranges[i] for p in errorpositions])]
+
 
 def main():
     # args = argparse() #TODO
