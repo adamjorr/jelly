@@ -268,12 +268,15 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
     np.seterr(all='raise')
     outsam = pysam.AlignmentFile(outfile, "wb", template=samfile)
     
-    start_e_mask = np.array([0,0,1,.5])
-    start_note_mask = np.array([1,1,0,.5])
-    middle_e_mask = np.array([0,0,.5,0,.5,.5,1,1,0,0,.5,0,0,0,1,.5])
-    middle_note_mask = np.array([1,1,.5,1,.5,.5,0,0,1,1,.5,1,1,1,0,.5])
+    start_e_mask = np.array([0,0,1,1])
+    start_note_mask = np.array([1,1,0,1])
+    start_both_mask = np.logical_not(np.logical_and(start_e_mask, start_note_mask))
+    middle_e_mask = np.array([0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1])
+    middle_note_mask = np.array([1,1,0,1,0,0,0,0,1,1,0,1,1,1,0,1])
+    middle_both_mask = np.logical_not(np.logical_and(middle_e_mask, middle_note_mask))
     end_e_mask = np.array([0,1,0,1])
     end_note_mask = np.array([1,0,1,1])
+    end_both_mask = np.logical_not(np.logical_and(end_e_mask, end_note_mask))
       
     i = 0
     for regionstr in conf_regions:
@@ -305,15 +308,15 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 #first transition. this multiplies the probabilities together and reshapes it to be like xi or A
                 first = np.outer(E0,E1).reshape(2,2)
                 second = np.outer(E2,E3).reshape(2,2)
+                perr = p[t+ksize]
                 p_o_given_q = np.outer(first,second).flatten()
                 p_q_given_l = np.outer(q_given_lambda[np.array([t,t+1])], q_given_lambda[np.array([t+ksize,t+ksize+1])]).flatten()
                 p_q_given_e = p_q_given_l * middle_e_mask
-                p_q_given_e = p_q_given_e / np.sum(p_q_given_e)
+                np.true_divide(p_q_given_e, perr, out = p_q_given_e, where = middle_both_mask)
                 p_q_given_note = p_q_given_l * middle_note_mask
-                p_q_given_note = p_q_given_note / np.sum(p_q_given_note)
+                np.true_divide(p_q_given_note, 1 - perr, out = p_q_given_note, where = middle_both_mask)
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
-                perr = p[t+ksize]
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
                 p[t+ksize] = p_e_given_o
             
@@ -321,15 +324,15 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             for t in range(ksize):
                 E0=E[t,]
                 E1=E[t+1,]
+                perr = p[t]
                 p_o_given_q = np.outer(E0,E1).flatten()
                 p_q_given_l = np.outer(q_given_lambda[t], q_given_lambda[t+1]).flatten()
                 p_q_given_e = p_q_given_l * start_e_mask
-                p_q_given_e = p_q_given_e / np.sum(p_q_given_e)
+                np.true_divide(p_q_given_e, perr, out = p_q_given_e, where = start_both_mask)
                 p_q_given_note = p_q_given_l * start_note_mask
-                p_q_given_note = p_q_given_note / np.sum(p_q_given_note)
+                np.true_divide(p_q_given_note, 1-perr, out = p_q_given_note, where = start_both_mask)
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
-                perr = p[t]
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
                 p[t] = p_e_given_o
 
@@ -339,15 +342,15 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 t = k + adjustment
                 E0=E[t,]
                 E1=E[t+1,]
+                perr = p[t + ksize]
                 p_o_given_q = np.outer(E0,E1).flatten()
                 p_q_given_l = np.outer(q_given_lambda[t],q_given_lambda[t+1]).flatten()
                 p_q_given_e = p_q_given_l * end_e_mask
-                p_q_given_e = p_q_given_e / np.sum(p_q_given_e)
+                np.true_divide(p_q_given_e, perr, out = p_q_given_e, where = end_both_mask)
                 p_q_given_note = p_q_given_l * end_note_mask
-                p_q_given_note = p_q_given_note / np.sum(p_q_given_note)
+                np.true_divide(p_q_given_note, 1-perr, out = p_q_given_note, where = end_both_mask)
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
-                perr = p[t + ksize]
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
                 p[t+ksize] = p_e_given_o
 
