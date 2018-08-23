@@ -216,7 +216,7 @@ def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     q = np.array(np.rint(q), dtype=np.int)
     q = np.clip(q, 0, 40)
     x = np.arange(len(p))
-    diff = np.mean(np.absolute(x - q))
+    mse = np.mean(np.square(x - q))
     
     sns.set()
     qualplot = plt.figure()
@@ -227,7 +227,7 @@ def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     plt.xlabel("Predicted Quality Score")
     plt.ylabel("Actual Quality Score")
     plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
-    plt.text(0.5,0.01, "Mean absolute difference: " + str(diff),
+    plt.text(0.5,0.01, "Mean squared error: " + str(mse),
         horizontalalignment = 'center', verticalalignment = 'bottom',
         transform = ax.transAxes)
     qualplot.savefig(plotname)
@@ -270,13 +270,10 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
     
     start_e_mask = np.array([0,0,1,1])
     start_note_mask = np.array([1,1,0,1])
-    start_both_mask = np.logical_and(start_e_mask != 0, start_note_mask != 0)
     middle_e_mask = np.array([0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1])
     middle_note_mask = np.array([1,1,0,1,0,0,0,0,1,1,0,1,1,1,0,1])
-    middle_both_mask = np.logical_and(middle_e_mask != 0, middle_note_mask != 0)
     end_e_mask = np.array([0,1,0,1])
     end_note_mask = np.array([1,0,1,1])
-    end_both_mask = np.logical_and(end_e_mask != 0, end_note_mask != 0)
       
     i = 0
     for regionstr in conf_regions:
@@ -287,6 +284,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             E = modelE[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
+            newp = np.zeros(len(p), dtype = np.longdouble)
             q_given_lambda = calc_q_given_lambda(gamma[0].flatten(),A,len(E))
 
             #this block calculates P(E|O,M) = sum(P(E|Q) * P(Q|O,M))
@@ -311,18 +309,14 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 perr = p[t+ksize]
                 p_o_given_q = np.outer(first,second).flatten()
                 p_q_given_l = np.outer(q_given_lambda[np.array([t,t+1])], q_given_lambda[np.array([t+ksize,t+ksize+1])]).flatten()
-                p_q_given_e = np.zeros(16, dtype = np.longdouble)
-                p_q_given_e[middle_note_mask == 0] = p_q_given_l[middle_note_mask == 0] / perr
-                p_q_given_e[middle_both_mask] = p_q_given_l[middle_both_mask]
+                p_q_given_e = middle_e_mask / np.sum(middle_e_mask)
                 
-                p_q_given_note = np.zeros(16, dtype = np.longdouble)
-                p_q_given_note[middle_e_mask == 0] = p_q_given_l[middle_e_mask == 0] / (1 - perr)
-                p_q_given_note[middle_both_mask] = p_q_given_l[middle_both_mask]
+                p_q_given_note = middle_note_mask / np.sum(middle_note_mask)
 
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
-                p[t+ksize] = p_e_given_o
+                newp[t+ksize] = p_e_given_o
             
             #now do the same for the first ksize bases
             for t in range(ksize):
@@ -332,18 +326,14 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 p_o_given_q = np.outer(E0,E1).flatten()
                 p_q_given_l = np.outer(q_given_lambda[t], q_given_lambda[t+1]).flatten()
                 
-                p_q_given_e = np.zeros(4, dtype = np.longdouble)
-                p_q_given_e[start_note_mask == 0] = p_q_given_l[start_note_mask == 0] / perr
-                p_q_given_e[start_both_mask] = p_q_given_l[start_both_mask]
+                p_q_given_e = start_e_mask / np.sum(start_e_mask)
 
-                p_q_given_note = np.zeros(4, dtype = np.longdouble)
-                p_q_given_note[start_e_mask == 0] = p_q_given_l[start_e_mask == 0] / (1 - perr)
-                p_q_given_note[start_both_mask] = p_q_given_l[start_both_mask]
+                p_q_given_note = start_note_mask / np.sum(start_note_mask)
 
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
-                p[t] = p_e_given_o
+                newp[t] = p_e_given_o
 
             #now for the last ksize bases
             adjustment = len(xi) - ksize
@@ -355,18 +345,14 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 p_o_given_q = np.outer(E0,E1).flatten()
                 p_q_given_l = np.outer(q_given_lambda[t],q_given_lambda[t+1]).flatten()
                 
-                p_q_given_e = np.zeros(4, dtype = np.longdouble)
-                p_q_given_e[end_note_mask == 0] = p_q_given_l[end_note_mask == 0] / perr
-                p_q_given_e[end_both_mask] = p_q_given_l[end_both_mask]
+                p_q_given_e = end_e_mask / np.sum(end_e_mask)
 
-                p_q_given_note = np.zeros(4, dtype = np.longdouble)
-                p_q_given_note[end_e_mask == 0] = p_q_given_l[end_e_mask == 0] / (1 - perr)
-                p_q_given_note[end_both_mask] = p_q_given_l[end_both_mask]
+                p_q_given_note = end_note_mask / np.sum(end_note_mask)
 
                 p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
                 p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
                 p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
-                p[t+ksize] = p_e_given_o
+                newp[t+ksize] = p_e_given_o
 
             #pe1_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
             #pe0_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
@@ -392,6 +378,11 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 print("p[p < 0.0]",p[p < 0.0])
                 print("p[p > 1.0]",p[p > 1.0])
                 raise
+
+            #platt scaled
+
+            #platt_scaled_p = 1 / (1 + np.)
+
 
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
