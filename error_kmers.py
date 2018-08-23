@@ -22,6 +22,7 @@ from multiprocessing import Pool
 import scipy
 import scipy.stats
 import scipy.signal
+import scipy.special
 import scipy.optimize as op
 import os.path
 
@@ -379,10 +380,10 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 print("p[p > 1.0]",p[p > 1.0])
                 raise
 
-            #platt scaled
-
-            #platt_scaled_p = 1 / (1 + np.)
-
+            #platt scaling
+            res = scipy.optimize.minimize(neglikelihood, np.array([1,0], dtype = np.longdouble), args = (newp))
+            platt_a, platt_b = res["x"]
+            p = platt_fun(platt_a, platt_b, newp)
 
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
@@ -391,6 +392,13 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             
             outsam.write(read)
             i = i + 1
+
+def platt_fun(platt_a, platt_b, p):
+    return scipy.special.expit(-(platt_a * p + platt_b))
+
+def neglikelihood(x, p):
+    h_x = platt_fun(x[0],x[1],p)
+    return -(np.prod(np.power(h_x,p) * np.power(1-h_x,1-p)))
 
 def baum_welch(A, E, pi):
     """
