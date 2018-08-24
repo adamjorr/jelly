@@ -381,7 +381,8 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 raise
 
             #platt scaling
-            res = scipy.optimize.minimize(neglikelihood, np.array([1,0], dtype = np.longdouble), args = (newp))
+            res = scipy.optimize.minimize(qfunc, np.array([1,0], dtype = np.longdouble), args = (newp))
+            assert res["success"]
             platt_a, platt_b = res["x"]
             p = platt_fun(platt_a, platt_b, newp)
 
@@ -393,14 +394,12 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             outsam.write(read)
             i = i + 1
 
-def platt_fun(platt_a, platt_b, p):
-    return scipy.special.expit(-(platt_a * p + platt_b))
+def platt_fun(platt_a, platt_b, x):
+    return scipy.special.expit(-(platt_a * x + platt_b))
 
-def loglikelihood(x, p):
-    h_x = platt_fun(x[0],x[1],p)
-    return np.sum(np.log(h_x * p))
-
-
+def qfunc(theta, x):
+    h_x = platt_fun(theta[0],theta[1],x)
+    return -np.sum(np.log(h_x) * h_x + np.log(1-h_x) * (1-h_x))
 
 def baum_welch(A, E, pi):
     """
