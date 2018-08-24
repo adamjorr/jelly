@@ -396,9 +396,11 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
 def platt_fun(platt_a, platt_b, p):
     return scipy.special.expit(-(platt_a * p + platt_b))
 
-def neglikelihood(x, p):
+def loglikelihood(x, p):
     h_x = platt_fun(x[0],x[1],p)
-    return -(np.prod(np.power(h_x,p) * np.power(1-h_x,1-p)))
+    return np.sum(np.log(h_x * p))
+
+
 
 def baum_welch(A, E, pi):
     """
