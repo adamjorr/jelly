@@ -25,6 +25,7 @@ import scipy.signal
 import scipy.special
 import scipy.optimize as op
 import os.path
+from sklearn.isotonic import IsotonicRegression as IR
 
 def get_confident_regions(bedfilename):
     '''
@@ -379,12 +380,17 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 print("p[p < 0.0]",p[p < 0.0])
                 print("p[p > 1.0]",p[p > 1.0])
                 raise
-
+            
+            #isotonic regression
+            ir = IR( out_of_bounds = 'clip' )
+            ir.fit( newp, newp )
+            p = ir.transform( newp )
+            
             #platt scaling
-            res = scipy.optimize.minimize(qfunc, np.array([1,0], dtype = np.longdouble), args = (newp))
-            assert res["success"]
-            platt_a, platt_b = res["x"]
-            p = platt_fun(platt_a, platt_b, newp)
+            #res = scipy.optimize.minimize(qfunc, np.array([1,0], dtype = np.longdouble), args = (newp))
+            #assert res["success"]
+            #platt_a, platt_b = res["x"]
+            #p = platt_fun(platt_a, platt_b, newp)
 
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
