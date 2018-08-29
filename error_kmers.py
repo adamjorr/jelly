@@ -45,7 +45,7 @@ def load_vcf(vcffilename, conf_regions):
 
 def get_ref_dict(reffilename):
     reffile = pysam.FastaFile(reffilename)
-    return {r : reffile.fetch(region=r) for r in reffile.references}
+    return {r : reffile.fetch(reference=r) for r in reffile.references}
 
 def get_ref_base(refdict, chrom, pos):
     """pos is 1 based"""
