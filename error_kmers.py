@@ -211,7 +211,7 @@ def count_qual_scores(samfile, ref, conf_regions, vcf):
 def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     print(tstamp(), "Making Base Quality Score Plot . . .", file=sys.stderr)
     plottitle = (plottitle if plottitle is not None else plotname)
-	numtotal = np.ma.masked_array(numtotal, mask = (numtotal == 0))
+    numtotal = np.ma.masked_array(numtotal, mask = (numtotal == 0))
     #numtotal[numtotal == 0] = np.nan #don't divide by 0
     p = numerrors/numtotal
     #p[p == 0] = 1e-4 #1e-4 is the largest quality score, 40
