@@ -215,8 +215,8 @@ def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     #numtotal[numtotal == 0] = np.nan #don't divide by 0
     p = numerrors/numtotal
     #p[p == 0] = 1e-4 #1e-4 is the largest quality score, 40
-    q = -10.0*np.log10(p)
-    q = np.array(np.rint(q), dtype=np.int)
+    q = -10.0*np.ma.log10(p)
+    q = np.ma.masked_array(np.rint(q), dtype=np.int)
     q = np.clip(q, 0, 40)
     x = np.arange(len(p))
     mse = np.mean(np.square(x - q))
