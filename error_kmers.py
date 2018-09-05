@@ -196,8 +196,8 @@ def calc_perror(totalabund, errorabund, distplot = None, errorplot = None):
 
 def count_qual_scores(samfile, ref, conf_regions, vcf):
     print(tstamp(), "Counting Base Quality Scores . . .", file=sys.stderr)
-    numerrors = np.zeros(41, dtype = np.uint64)
-    numtotal = np.zeros(41, dtype = np.uint64)
+    numerrors = np.zeros(42, dtype = np.uint64)
+    numtotal = np.zeros(42, dtype = np.uint64)
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             refchr = read.reference_name
@@ -217,7 +217,7 @@ def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     #p[p == 0] = 1e-4 #1e-4 is the largest quality score, 40
     q = -10.0*np.ma.log10(p)
     q = np.ma.masked_array(np.rint(q), dtype=np.int)
-    q = np.clip(q, 0, 40)
+    q = np.clip(q, 0, 42)
     x = np.arange(len(p))
     mse = np.mean(np.square(x - q))
     
@@ -225,8 +225,8 @@ def plot_qual_scores(numerrors, numtotal, plotname, plottitle = None):
     qualplot = plt.figure()
     ax = qualplot.add_subplot(111)
     qualplot.suptitle(plottitle)
-    plt.plot(x,x)
-    plt.plot(x,q)
+    plt.plot(x)
+    plt.plot(np.arange(len(q))[np.logical_not(q.mask)], q[np.logical_not(q.mask)] , 'o-')
     plt.xlabel("Predicted Quality Score")
     plt.ylabel("Actual Quality Score")
     plt.legend(labels = ["Perfect","Estimated"], loc = "upper left")
