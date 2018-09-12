@@ -277,8 +277,8 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
     middle_note_mask = np.array([1,1,0,1,0,0,0,0,1,1,0,1,1,1,0,1])
     end_e_mask = np.array([0,1,0,1])
     end_note_mask = np.array([1,0,1,1])
-      
-    i = 0
+    readnames = list()
+    readquals = list()
     for regionstr in conf_regions:
         for read in samfile.fetch(region=regionstr):
             A = modelA[i,:]
@@ -287,8 +287,7 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             E = modelE[i,:]
             quals = np.array(read.query_qualities, dtype=np.int)
             p = np.array(10.0**(-quals/10.0), dtype=np.longdouble)
-            newp = np.zeros(len(p), dtype = np.longdouble)
-            q_given_lambda = calc_q_given_lambda(gamma[0].flatten(),A,len(E))
+            # q_given_lambda = calc_q_given_lambda(gamma[0].flatten(),A,len(E))
 
             #this block calculates P(E|O,M) = sum(P(E|Q) * P(Q|O,M))
             #for t in range(len(xi)-ksize):
@@ -300,62 +299,62 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
             #    p[t+ksize] = np.sum(p_q_given_o * p_e_given_q)
 
             #this block is me attempting to calculate P(E|O,M) = P(O|E,M)*P(E)/P(O) = sum(P(O|Q,M)*P(Q|E,M))*P(E)/P(O)
-            for t in range(len(xi)-ksize):
-                E0=E[t,]
-                E1=E[t+1,]
-                E2=E[t+ksize,]
-                E3=E[t+ksize+1,]
+            # for t in range(len(xi)-ksize):
+            #     E0=E[t,]
+            #     E1=E[t+1,]
+            #     E2=E[t+ksize,]
+            #     E3=E[t+ksize+1,]
                 
-                #first transition. this multiplies the probabilities together and reshapes it to be like xi or A
-                first = np.outer(E0,E1).reshape(2,2)
-                second = np.outer(E2,E3).reshape(2,2)
-                perr = p[t+ksize]
-                p_o_given_q = np.outer(first,second).flatten()
-                p_q_given_l = np.outer(q_given_lambda[np.array([t,t+1])], q_given_lambda[np.array([t+ksize,t+ksize+1])]).flatten()
-                p_q_given_e = middle_e_mask / np.sum(middle_e_mask)
+            #     #first transition. this multiplies the probabilities together and reshapes it to be like xi or A
+            #     first = np.outer(E0,E1).reshape(2,2)
+            #     second = np.outer(E2,E3).reshape(2,2)
+            #     perr = p[t+ksize]
+            #     p_o_given_q = np.outer(first,second).flatten()
+            #     p_q_given_l = np.outer(q_given_lambda[np.array([t,t+1])], q_given_lambda[np.array([t+ksize,t+ksize+1])]).flatten()
+            #     p_q_given_e = middle_e_mask / np.sum(middle_e_mask)
                 
-                p_q_given_note = middle_note_mask / np.sum(middle_note_mask)
+            #     p_q_given_note = middle_note_mask / np.sum(middle_note_mask)
 
-                p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
-                p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
-                p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
-                newp[t+ksize] = p_e_given_o
+            #     p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
+            #     p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
+            #     p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
+            #     p[t+ksize] = p_e_given_o
             
-            #now do the same for the first ksize bases
-            for t in range(ksize):
-                E0=E[t,]
-                E1=E[t+1,]
-                perr = p[t]
-                p_o_given_q = np.outer(E0,E1).flatten()
-                p_q_given_l = np.outer(q_given_lambda[t], q_given_lambda[t+1]).flatten()
+            # #now do the same for the first ksize bases
+            # for t in range(ksize):
+            #     E0=E[t,]
+            #     E1=E[t+1,]
+            #     perr = p[t]
+            #     p_o_given_q = np.outer(E0,E1).flatten()
+            #     p_q_given_l = np.outer(q_given_lambda[t], q_given_lambda[t+1]).flatten()
                 
-                p_q_given_e = start_e_mask / np.sum(start_e_mask)
+            #     p_q_given_e = start_e_mask / np.sum(start_e_mask)
 
-                p_q_given_note = start_note_mask / np.sum(start_note_mask)
+            #     p_q_given_note = start_note_mask / np.sum(start_note_mask)
 
-                p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
-                p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
-                p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
-                newp[t] = p_e_given_o
+            #     p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
+            #     p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
+            #     p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
+            #     p[t] = p_e_given_o
 
-            #now for the last ksize bases
-            adjustment = len(xi) - ksize
-            for k in range(ksize):
-                t = k + adjustment
-                E0=E[t,]
-                E1=E[t+1,]
-                perr = p[t + ksize]
-                p_o_given_q = np.outer(E0,E1).flatten()
-                p_q_given_l = np.outer(q_given_lambda[t],q_given_lambda[t+1]).flatten()
+            # #now for the last ksize bases
+            # adjustment = len(xi) - ksize
+            # for k in range(ksize):
+            #     t = k + adjustment
+            #     E0=E[t,]
+            #     E1=E[t+1,]
+            #     perr = p[t + ksize]
+            #     p_o_given_q = np.outer(E0,E1).flatten()
+            #     p_q_given_l = np.outer(q_given_lambda[t],q_given_lambda[t+1]).flatten()
                 
-                p_q_given_e = end_e_mask / np.sum(end_e_mask)
+            #     p_q_given_e = end_e_mask / np.sum(end_e_mask)
 
-                p_q_given_note = end_note_mask / np.sum(end_note_mask)
+            #     p_q_given_note = end_note_mask / np.sum(end_note_mask)
 
-                p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
-                p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
-                p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
-                newp[t+ksize] = p_e_given_o
+            #     p_o_given_e = np.sum(p_o_given_q * p_q_given_e)
+            #     p_o_given_note = np.sum(p_o_given_q * p_q_given_note)
+            #     p_e_given_o = p_o_given_e * perr / (p_o_given_note * (1-perr) + p_o_given_e * perr)
+            #     p[t+ksize] = p_e_given_o
 
             #pe1_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
             #pe0_given_q = np.zeros([len(p)-ksize,2,2], dtype = np.longdouble)
@@ -374,6 +373,8 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
 
             #p = pe0 + pe1
 
+            p[ksize:] = xi[:,0,1]
+
             try:
                 assert np.all(p >= 0.0) and np.all(p <= 1.0)
             except AssertionError:
@@ -381,32 +382,24 @@ def correct_sam_test(samfile, conf_regions, outfile, ksize, modelA, modelE, mode
                 print("p[p < 0.0]",p[p < 0.0])
                 print("p[p > 1.0]",p[p > 1.0])
                 raise
-            
-            #isotonic regression
-            ir = IR( out_of_bounds = 'clip' )
-            ir.fit( newp, newp )
-            p = ir.transform( newp )
-            
-            #platt scaling
-            #res = scipy.optimize.minimize(qfunc, np.array([1,0], dtype = np.longdouble), args = (newp))
-            #assert res["success"]
-            #platt_a, platt_b = res["x"]
-            #p = platt_fun(platt_a, platt_b, newp)
 
             q = -10.0*np.log10(p)
             quals = np.array(np.rint(q), dtype=np.int)
-            quals = np.clip(quals, 0, 40)
+            quals = np.clip(quals, 0, 43)
             read.query_qualities = quals
             
-            outsam.write(read)
-            i = i + 1
-
-def platt_fun(platt_a, platt_b, x):
-    return scipy.special.expit(-(platt_a * x + platt_b))
-
-def qfunc(theta, x):
-    h_x = platt_fun(theta[0],theta[1],x)
-    return -np.sum(np.log(h_x) * h_x + np.log(1-h_x) * (1-h_x))
+            #outsam.write(read)
+            if read.is_read1:
+                pair = "1"
+            elif read.is_read2:
+                pair = "2"
+            else:
+                continue
+            rname = str(read.query_name) + '/' + pair
+            rquals = quals
+            readnames.append(rname)
+            readquals.append(rquals)
+    return readnames, readquals
 
 def baum_welch(A, E, pi):
     """
@@ -529,6 +522,73 @@ def normalized_backward(A, E, normalizer):
     for t in reversed(range(0,E.shape[0]-1)):
         beta[t] = np.matmul(A,E[t+1] * beta[t+1]) / normalizer[t]
     return beta
+
+def do_recalibration():
+    fileprefix = '/home/ajorr1/variant-standards/CHM-eval/hg19/chr1/'
+    samfilename = fileprefix + 'chr1.bam'
+    fafilename = fileprefix + 'chr1.renamed.fa'
+    bedfilename = fileprefix + 'chr1_first100.bed.gz'
+    vcffilename = fileprefix + 'chr1_in_confident.vcf.gz'
+    tabundfile = fileprefix + 'tabund.txt.gz'
+    eabundfile = fileprefix + 'eabund.txt.gz'
+    numerrsfile = fileprefix + 'numerrs.txt.gz'
+    numtotalfile = fileprefix + 'numtotal.txt.gz'
+    kmergraphfile = fileprefix + 'kmers.khmer'
+    outfile = fileprefix + 'test.bam'
+    modelfile = fileprefix + 'model.npz'
+
+    if all([ os.path.exists(tabundfile), os.path.exists(eabundfile),
+    os.path.exists(numerrsfile), os.path.exists(numtotalfile),
+    os.path.exists(kmergraphfile) ]) :
+        tabund = np.loadtxt(tabundfile, dtype = np.int64)
+        eabund = np.loadtxt(eabundfile, dtype = np.int64)
+        numerrors = np.loadtxt(numerrsfile, dtype = np.int64)
+        numtotal = np.loadtxt(numtotalfile, dtype = np.int64)
+        
+        alltable, _, _ = init_hashes()
+        alltable.load(kmergraphfile)
+    else:
+        #set up hashes and load files
+        alltable, errortable, trackingtable = init_hashes()
+        samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
+        
+        #count
+        print(tstamp(), "Counting . . .", file=sys.stderr)
+        alltable, errortable = count_mers(samfile, refdict, vcf, conf_regions, alltable, errortable)
+        alltable.save(kmergraphfile)
+
+        print(tstamp(), "Calculating Abundances . . .", file=sys.stderr)
+        #each kmer has a position in these arrays; abund[kmer idx] = # occurrences
+        tabund, eabund = get_abundances(samfile, conf_regions, alltable, errortable, trackingtable)
+        np.savetxt(tabundfile, tabund, fmt = '%d')
+        np.savetxt(eabundfile, eabund, fmt = '%d')
+        
+        numerrors, numtotal = count_qual_scores(samfile, refdict, conf_regions, vcf)
+        np.savetxt(numerrsfile, numerrors, fmt = '%d')
+        np.savetxt(numtotalfile, numtotal, fmt = '%d')
+    
+
+    #tabund[i] = count of kmer with index i
+    #tcounts[i] = number of kmers with count i
+    
+    #perror[1] = observed p(error|x) for abundance of 1
+    perror, tcounts = calc_perror(tabund, eabund, distplot = 'distributions.png', errorplot = 'probability.png')
+    
+    samfile, refdict, conf_regions, vcf = load_files(samfilename, fafilename, bedfilename, vcffilename)
+    
+    if os.path.exists(modelfile):
+        print(tstamp(), "Loading model . . .", file = sys.stderr)
+        loadedmodel = np.load(modelfile)
+        A = np.array(loadedmodel['A'], dtype = np.longdouble)
+        xi = np.array(loadedmodel['xi'], dtype = np.longdouble)
+        gamma = np.array(loadedmodel['gamma'], dtype = np.longdouble)
+        E = np.array(loadedmodel['E'], dtype = np.longdouble)
+    else:
+        print(tstamp(), "Training model . . .", file = sys.stderr)
+        A, E, xi, gamma = train_model(samfile, conf_regions, tcounts, perror, alltable)
+        np.savez_compressed(modelfile, A = A, E = E, xi = xi, gamma = gamma)
+
+    return correct_sam_test(samfile, conf_regions, outfile, alltable.ksize(), A, E, xi, gamma) #creates outfile
 
 def main():
     # args = argparse() #TODO
